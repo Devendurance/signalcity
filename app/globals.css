@@ -9,3 +9,60 @@
 @media (prefers-reduced-motion: reduce) { .city-status span { box-shadow: none; } }
 .traffic-debug-panel { position:absolute; top:82px; right:28px; display:flex; align-items:center; gap:5px; padding:7px 9px; border:1px solid var(--line); border-radius:10px; background:rgba(13,20,28,.88); font-size:10px; color:var(--muted); }
 .traffic-debug-panel button { width:24px; height:24px; border:1px solid var(--line); border-radius:6px; background:#111b24; color:#a9f5c4; cursor:pointer; }
+/* ---- District Panels ---- */
+.city-panel--wide { width: min(480px, calc(100vw - 56px)); max-height: 70dvh; overflow-y: auto; }
+.district-panel h2 { margin: 0 0 4px; font-size: 20px; }
+.panel-subtitle { margin: 0 0 8px; color: #84cba2; font-size: 13px; font-weight: 600; }
+.panel-description { margin: 0 0 16px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+/* ---- Forms ---- */
+.district-form { display: flex; flex-direction: column; gap: 12px; }
+.district-form label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: #73877e; text-transform: uppercase; letter-spacing: .06em; }
+.district-form input, .district-form textarea, .district-form select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #111b24; color: #dce9e2; font: inherit; font-size: 13px; }
+.district-form textarea { resize: vertical; min-height: 60px; }
+.district-form select { cursor: pointer; }
+.district-form button { padding: 10px 16px; border: none; border-radius: 8px; background: #22c55e; color: #0a1a10; font-weight: 700; cursor: pointer; }
+.district-form button:disabled { opacity: .5; cursor: not-allowed; }
+.district-form button.secondary, .receipt-card button { padding: 8px 14px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: #dce9e2; cursor: pointer; margin-top: 8px; }
+.error-message { color: #ef4444; font-size: 12px; }
+/* ---- Receipt Cards ---- */
+.receipt-card h3 { margin: 0 0 12px; font-size: 16px; }
+.receipt-classification { margin-bottom: 12px; }
+.classification-badge { display: inline-block; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; background: rgba(34,197,94,.15); color: #22c55e; }
+.classification-badge.weakly-supported, .classification-badge.unsupported-by-current-evidence { background: rgba(234,179,8,.15); color: #eab308; }
+.classification-badge.opinion-presented-as-fact, .classification-badge.prediction-not-currently-verifiable { background: rgba(107,114,128,.15); color: #9ca3af; }
+.receipt-finding { color: var(--ink); font-size: 13px; line-height: 1.5; }
+.receipt-card section { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+.receipt-card h4 { margin: 0 0 6px; font-size: 11px; color: #73877e; text-transform: uppercase; letter-spacing: .06em; }
+.receipt-card ul { margin: 0; padding-left: 18px; }
+.receipt-card li { font-size: 12px; line-height: 1.5; color: var(--muted); margin-bottom: 3px; }
+.receipt-card footer { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 10px; color: #73877e; }
+.receipt-id { font-family: monospace; font-size: 9px; word-break: break-all; }
+.warning-section { border-color: rgba(234,179,8,.2) !important; }
+.warning-text { color: #eab308; font-size: 12px; }
+/* ---- Gate Indicator ---- */
+.gate-indicator { display: flex; align-items: center; gap: 10px; padding: 14px; border: 2px solid; border-radius: 10px; margin-bottom: 14px; }
+.gate-light { width: 16px; height: 16px; border-radius: 50%; box-shadow: 0 0 14px currentColor; }
+.gate-label { font-size: 16px; font-weight: 700; }
+/* ---- Portfolio ---- */
+.csv-upload { padding: 10px; border: 1px dashed var(--line); border-radius: 8px; }
+.csv-hint { margin: 4px 0 0; color: var(--muted); font-size: 10px; }
+.holdings-table { display: flex; flex-direction: column; gap: 6px; }
+.holdings-header, .holdings-row { display: grid; grid-template-columns: 1fr 1fr .6fr 1.2fr .8fr .8fr 28px; gap: 4px; align-items: center; }
+.holdings-header { font-size: 9px; color: #73877e; text-transform: uppercase; padding: 0 2px; }
+.holdings-row input { padding: 5px 6px; border: 1px solid var(--line); border-radius: 5px; background: #111b24; color: #dce9e2; font-size: 11px; }
+.remove-btn { background: none; border: none; color: #ef4444; cursor: pointer; font-size: 14px; }
+.add-btn { padding: 6px; border: 1px dashed var(--line); border-radius: 6px; background: transparent; color: #84cba2; cursor: pointer; font-size: 12px; }
+.holding-card { padding: 8px 10px; border-left: 3px solid; border-radius: 0 6px 6px 0; background: rgba(255,255,255,.03); margin-bottom: 6px; }
+.holding-header { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.holding-header span { color: var(--muted); font-size: 11px; }
+.health-badge { padding: 1px 6px; border-radius: 4px; font-size: 9px; text-transform: uppercase; }
+.health-badge.healthy { background: rgba(34,197,94,.15); color: #22c55e; }
+.health-badge.under-observation { background: rgba(234,179,8,.15); color: #eab308; }
+.health-badge.critical-attention { background: rgba(239,68,68,.15); color: #ef4444; }
+.metrics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.metrics-grid div { display: flex; flex-direction: column; gap: 2px; padding: 8px; border: 1px solid var(--line); border-radius: 8px; }
+.metrics-grid span { font-size: 10px; color: #73877e; text-transform: uppercase; }
+.metrics-grid strong { font-size: 18px; }
+/* ---- Attribution ---- */
+.city-attribution { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); font-size: 10px; color: rgba(255,255,255,.25); pointer-events: none; }
+.data-status { color: #72df9b; }
