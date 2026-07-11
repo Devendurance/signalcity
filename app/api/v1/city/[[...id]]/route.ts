@@ -6,20 +6,20 @@ import { DistrictStateBuilder, DEFAULT_DISTRICTS } from "@engine/market-engine/d
 
 export async function GET(
   _request: Request,
-  { params }: { params: Promise<{ id?: string }> },
+  { params }: { params: Promise<{ id?: string[] }> },
 ): Promise<Response> {
   try {
     const adapter = getAdapter();
     const builder = new DistrictStateBuilder(adapter);
-    const { id } = await params;
+    const resolved = await params;
+    const districtId = resolved.id?.[0];
 
-    if (id) {
-      // Single district
-      const config = DEFAULT_DISTRICTS.find((d) => d.id === id);
+    if (districtId) {
+      const config = DEFAULT_DISTRICTS.find((d) => d.id === districtId);
       if (!config) {
         return apiError(
           "DISTRICT_NOT_FOUND",
-          `District "${id}" not found. Available: ${DEFAULT_DISTRICTS.map((d) => d.id).join(", ")}`,
+          `District "${districtId}" not found. Available: ${DEFAULT_DISTRICTS.map((d) => d.id).join(", ")}`,
           404,
         );
       }
