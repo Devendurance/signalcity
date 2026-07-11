@@ -1,6 +1,7 @@
 // ============================================================
 // Signal City — District Label System
-// CSS2D world-space labels anchored above districts.
+// Interactive CSS2D world-space labels. Clickable. Accessible.
+// Shares the same selection flow as Three.js raycasting.
 // ============================================================
 
 import * as THREE from "three";
@@ -30,6 +31,17 @@ export interface LabelInstance {
   element: HTMLElement;
 }
 
+export interface DistrictLabelSystemCallbacks {
+  /** Fired when a label is clicked/tapped. Receives the district ID. */
+  onSelect: (districtId: string) => void;
+  /** Fired when hovering starts. */
+  onHover?: (districtId: string) => void;
+  /** Fired when hovering ends. */
+  onHoverEnd?: () => void;
+}
+
+const CLICK_MOVE_THRESHOLD = 4; // px — below this is a click, above is a drag
+
 // ---- Label Anchors (canonical positions) ----
 
 export function buildLabelAnchors(districts: DistrictState[]): LabelAnchor[] {
@@ -38,7 +50,7 @@ export function buildLabelAnchors(districts: DistrictState[]): LabelAnchor[] {
   for (const d of districts) {
     const pos = new THREE.Vector3(
       d.position[0],
-      d.position[1] + 4.5, // above building
+      d.position[1] + 4.5,
       d.position[2],
     );
 
@@ -56,7 +68,7 @@ export function buildLabelAnchors(districts: DistrictState[]): LabelAnchor[] {
     });
   }
 
-  // Add "The Weather Grid" label above center
+  // "The Weather Grid" label above center
   anchors.push({
     id: "weather-grid",
     position: new THREE.Vector3(0, 7, 0),
@@ -75,13 +87,22 @@ export class DistrictLabelSystem {
   private readonly group = new THREE.Group();
   private readonly camera: THREE.Camera;
   private readonly domElement: HTMLElement;
+  private readonly callbacks: DistrictLabelSystemCallbacks;
   private css2DRenderer: CSS2DRenderer | null = null;
   private selectedId: string | null = null;
   private hoveredId: string | null = null;
 
-  constructor(container: HTMLElement, camera: THREE.Camera) {
+  // Click-vs-drag tracking per label
+  private pointerDownPos = new Map<string, { x: number; y: number }>();
+
+  constructor(
+    container: HTMLElement,
+    camera: THREE.Camera,
+    callbacks: DistrictLabelSystemCallbacks,
+  ) {
     this.camera = camera;
     this.domElement = container;
+    this.callbacks = callbacks;
     this.setupCSS2DRenderer();
   }
 
@@ -100,48 +121,40 @@ export class DistrictLabelSystem {
       object.name = `label-${anchor.id}`;
       object.userData.labelAnchor = anchor;
 
-      // Add location marker (diamond beneath label)
+      // Diamond location marker
       const marker = this.createLocationMarker(anchor);
       object.add(marker);
 
       this.group.add(object);
-      this.labels.push({
-        id: anchor.id,
-        object,
-        anchor,
-        kind: anchor.kind,
-        element,
-      });
+      this.labels.push({ id: anchor.id, object, anchor, kind: anchor.kind, element });
     }
   }
 
-  /** Update labels each frame: face camera, fade by distance, scale. */
+  /** Update labels each frame. */
   update(): void {
     const cameraPos = this.camera.position.clone();
     const cameraForward = new THREE.Vector3();
     this.camera.getWorldDirection(cameraForward);
 
     for (const instance of this.labels) {
-      const { object, anchor, kind } = instance;
+      const { object, kind } = instance;
       const worldPos = new THREE.Vector3();
       object.getWorldPosition(worldPos);
 
-      // Face the camera
+      // Face camera
       object.lookAt(
         worldPos.x + cameraForward.x,
         worldPos.y + cameraForward.y,
         worldPos.z + cameraForward.z,
       );
 
-      // Distance-based fade
+      // Distance fade
       const dist = cameraPos.distanceTo(worldPos);
       const isSelected = instance.id === this.selectedId;
       const isHovered = instance.id === this.hoveredId;
 
-      // Main districts visible further, sector zones fade sooner
       const maxDist = kind === "main-district" ? 40 : 25;
-      const minDist = 3;
-      const fadeRange = maxDist - minDist;
+      const fadeRange = maxDist - 3;
       let opacity = 1;
       if (dist > maxDist) {
         opacity = 0;
@@ -149,19 +162,19 @@ export class DistrictLabelSystem {
         opacity = Math.max(0, (maxDist - dist) / (fadeRange * 0.3));
       }
 
-      // Highlight selected/hovered
       if (isSelected) opacity = 1;
       if (isHovered) opacity = Math.max(opacity, 0.85);
 
       instance.element.style.opacity = String(opacity);
+      // Only enable pointer events when visible enough
       instance.element.style.pointerEvents = opacity > 0.1 ? "auto" : "none";
 
-      // Scale modestly with distance (closer = larger, far = smaller)
+      // Scale with distance
       const baseScale = kind === "main-district" ? 1.2 : 0.85;
       const scale = baseScale * THREE.MathUtils.clamp(1 + (8 - dist) * 0.03, 0.7, 1.3);
       object.scale.setScalar(scale);
 
-      // Hide when behind camera
+      // Behind camera
       const toLabel = worldPos.clone().sub(cameraPos).normalize();
       const dot = toLabel.dot(cameraForward);
       if (dot < -0.1 && !isSelected) {
@@ -173,11 +186,13 @@ export class DistrictLabelSystem {
     (this.css2DRenderer as any)?.render(this.group, this.camera);
   }
 
-  /** Mark a district as selected. */
+  /** Mark a district as selected (from either label click or building raycast). */
   selectDistrict(id: string | null): void {
     this.selectedId = id;
     for (const instance of this.labels) {
-      instance.element.classList.toggle("label-selected", instance.id === id);
+      const isSel = instance.id === id;
+      instance.element.classList.toggle("label-selected", isSel);
+      instance.element.setAttribute("aria-selected", String(isSel));
     }
   }
 
@@ -198,7 +213,6 @@ export class DistrictLabelSystem {
     }
   }
 
-  /** Resize handler — update CSS2D renderer size. */
   resize(width: number, height: number): void {
     this.css2DRenderer?.setSize(width, height);
   }
@@ -217,27 +231,85 @@ export class DistrictLabelSystem {
 
   private setupCSS2DRenderer(): void {
     this.css2DRenderer = new CSS2DRenderer();
-    this.css2DRenderer.setSize(
-      this.domElement.clientWidth,
-      this.domElement.clientHeight,
-    );
+    this.css2DRenderer.setSize(this.domElement.clientWidth, this.domElement.clientHeight);
     this.css2DRenderer.domElement.style.position = "absolute";
     this.css2DRenderer.domElement.style.top = "0";
     this.css2DRenderer.domElement.style.left = "0";
-    this.css2DRenderer.domElement.style.pointerEvents = "none";
+    this.css2DRenderer.domElement.style.pointerEvents = "none"; // Layer is non-blocking
     this.css2DRenderer.domElement.style.zIndex = "10";
     this.domElement.appendChild(this.css2DRenderer.domElement);
   }
 
   private createElement(anchor: LabelAnchor): HTMLElement {
-    const el = document.createElement("div");
+    const el = document.createElement("button");
     el.className = `district-label ${anchor.kind}`;
+    el.setAttribute("role", "button");
+    el.setAttribute("aria-label", `${anchor.label}${anchor.subtitle ? ` — ${anchor.subtitle}` : ""}`);
+    el.setAttribute("tabindex", "0");
     el.innerHTML = `
-      <div class="label-text">${anchor.label}</div>
-      ${anchor.subtitle ? `<div class="label-subtitle">${anchor.subtitle}</div>` : ""}
+      <span class="label-text">${anchor.label}</span>
+      ${anchor.subtitle ? `<span class="label-subtitle">${anchor.subtitle}</span>` : ""}
     `;
-    el.addEventListener("pointerenter", () => { this.hoveredId = anchor.id; });
-    el.addEventListener("pointerleave", () => { this.hoveredId = null; });
+
+    // ---- Pointer events (click-vs-drag detection) ----
+    el.addEventListener("pointerdown", (e) => {
+      this.pointerDownPos.set(anchor.id, { x: e.clientX, y: e.clientY });
+    });
+
+    el.addEventListener("pointerup", (e) => {
+      const down = this.pointerDownPos.get(anchor.id);
+      if (!down) return;
+      this.pointerDownPos.delete(anchor.id);
+
+      const dx = e.clientX - down.x;
+      const dy = e.clientY - down.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      // Only fire if movement is below threshold (not a drag)
+      if (dist < CLICK_MOVE_THRESHOLD) {
+        e.stopPropagation();
+        this.callbacks.onSelect(anchor.id);
+      }
+    });
+
+    // Prevent accidental drag initiation
+    el.addEventListener("pointermove", (e) => {
+      const down = this.pointerDownPos.get(anchor.id);
+      if (down) {
+        const dx = e.clientX - down.x;
+        const dy = e.clientY - down.y;
+        if (Math.sqrt(dx * dx + dy * dy) > CLICK_MOVE_THRESHOLD) {
+          this.pointerDownPos.delete(anchor.id);
+        }
+      }
+    });
+
+    // ---- Keyboard ----
+    el.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        this.callbacks.onSelect(anchor.id);
+      }
+    });
+
+    // ---- Hover ----
+    el.addEventListener("pointerenter", () => {
+      this.hoveredId = anchor.id;
+      this.callbacks.onHover?.(anchor.id);
+    });
+    el.addEventListener("pointerleave", () => {
+      this.hoveredId = null;
+      this.callbacks.onHoverEnd?.();
+    });
+
+    // ---- Focus ----
+    el.addEventListener("focus", () => {
+      this.hoveredId = anchor.id;
+    });
+    el.addEventListener("blur", () => {
+      this.hoveredId = null;
+    });
+
     return el;
   }
 
@@ -261,5 +333,6 @@ export class DistrictLabelSystem {
       this.group.remove(instance.object);
     }
     this.labels = [];
+    this.pointerDownPos.clear();
   }
 }

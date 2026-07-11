@@ -1,7 +1,7 @@
 @import "tailwindcss";
 :root { color-scheme: dark; --ink: #edf7f1; --muted: #9eb0a8; --line: rgba(224,244,234,.16); }
 * { box-sizing: border-box; } html, body { width: 100%; min-height: 100%; margin: 0; overflow: hidden; background: #101722; color: var(--ink); } body { font-family: Arial, Helvetica, sans-serif; } button { font: inherit; }
-.city-shell { position: relative; width: 100vw; height: 100dvh; overflow: hidden; background: #101722; } .city-canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+.city-shell { position: relative; width: 100vw; height: 100dvh; overflow: hidden; background: #101722; overscroll-behavior: none; } .city-canvas { display: block; width: 100%; height: 100%; touch-action: none; user-select: none; -webkit-user-select: none; }
 .city-header { position: absolute; inset: 0 0 auto; display: flex; justify-content: space-between; align-items: flex-start; padding: 24px 28px; pointer-events: none; } .city-brand { margin: 0; font-size: 18px; font-weight: 750; letter-spacing: -.03em; } .city-tagline { margin: 4px 0 0; color: var(--muted); font-size: 13px; } .city-status { display: flex; align-items: center; gap: 8px; margin: 0; color: #c8d8d0; font-size: 12px; } .city-status span { width: 7px; height: 7px; border-radius: 50%; background: #72df9b; box-shadow: 0 0 14px #72df9b; }
 .city-panel { position: absolute; left: 28px; bottom: 28px; width: min(380px, calc(100vw - 56px)); padding: 20px; border: 1px solid var(--line); border-radius: 16px; background: rgba(13,20,28,.82); backdrop-filter: blur(14px); } .panel-label { margin: 0 0 8px; color: #84cba2; font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; } .city-panel h1 { margin: 0; font-size: clamp(22px,3vw,32px); line-height: 1.05; letter-spacing: -.04em; } .city-panel > p:not(.panel-label) { margin: 12px 0 18px; color: var(--muted); font-size: 13px; line-height: 1.55; } .city-panel dl { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin: 0; padding-top: 14px; border-top: 1px solid var(--line); } .city-panel dt { color: #73877e; font-size: 10px; text-transform: uppercase; letter-spacing: .08em; } .city-panel dd { margin: 5px 0 0; color: #dce9e2; font-size: 11px; line-height: 1.3; }
 .district-list { position: absolute; right: 28px; bottom: 28px; display: flex; gap: 8px; } .district-list button { min-width: 48px; padding: 10px 13px; border: 1px solid var(--line); border-radius: 10px; color: #dce9e2; background: rgba(13,20,28,.78); cursor: pointer; } .district-list button:hover, .district-list button:focus-visible { border-color: #72df9b; outline: none; }
@@ -73,3 +73,72 @@
 .district-label .label-subtitle { font-size: 8px; color: #9eb0a8; text-transform: uppercase; letter-spacing: .08em; margin-top: 1px; }
 .district-label.label-selected .label-text { color: #72df9b; text-shadow: 0 0 10px rgba(114,223,155,.5); }
 .district-label.label-hovered .label-text { color: #a9f5c4; }
+/* ---- Mobile: Bottom Sheet ---- */
+@media (max-width: 768px) {
+  .city-header { padding: 14px 16px; }
+  .city-brand { font-size: 15px; }
+  .city-tagline { font-size: 11px; }
+  .city-status { font-size: 10px; gap: 5px; }
+  .city-status span { width: 5px; height: 5px; }
+  .city-panel { left: 0; right: 0; bottom: 0; width: 100%; border-radius: 16px 16px 0 0; max-height: 55dvh; transform: translateY(0); transition: transform .25s ease; padding-bottom: env(safe-area-inset-bottom,12px); overflow-y: auto; touch-action: pan-y; }
+  .city-panel--wide { max-height: 75dvh; }
+  .city-panel.collapsed { transform: translateY(calc(100% - 56px)); }
+  .city-panel.half { transform: translateY(35%); max-height: 50dvh; }
+  .city-panel.full { transform: translateY(0); max-height: 82dvh; }
+  .sheet-handle { width: 32px; height: 4px; border-radius: 2px; background: rgba(255,255,255,.25); margin: 0 auto 10px; cursor: grab; }
+  .sheet-close { position: absolute; top: 12px; right: 14px; width: 28px; height: 28px; border: none; border-radius: 50%; background: rgba(255,255,255,.08); color: var(--muted); font-size: 14px; cursor: pointer; }
+  .district-list { right: auto; left: 8px; bottom: 8px; gap: 4px; overflow-x: auto; max-width: calc(100vw - 16px); padding: 4px 0; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .district-list::-webkit-scrollbar { display: none; }
+  .district-list button { min-width: auto; padding: 6px 10px; font-size: 11px; white-space: nowrap; border-radius: 20px; flex-shrink: 0; }
+  .traffic-debug-panel { top: 68px; right: 8px; padding: 5px 7px; gap: 3px; }
+  .traffic-debug-panel button { width: 20px; height: 20px; font-size: 9px; }
+  .district-label.main-district .label-text { font-size: 11px; }
+  .district-label.sector-zone .label-text { font-size: 8px; }
+  .district-label .label-subtitle { display: none; }
+  .city-attribution { font-size: 8px; }
+  .district-form input, .district-form textarea, .district-form select { font-size: 16px; }
+  /* Full-width form controls */
+  .district-form input:not([type="file"]), .district-form textarea, .district-form select { width: 100%; max-width: 100%; box-sizing: border-box; }
+  .district-form textarea { min-height: 70px; }
+  /* Touch-friendly buttons */
+  .district-form button { min-height: 44px; width: 100%; }
+  .district-form button.secondary, .receipt-card button { min-height: 44px; }
+  /* Receipt card scrolling + overflow */
+  .receipt-card { overflow-wrap: break-word; word-break: break-word; }
+  .receipt-card li { word-break: break-word; }
+  .receipt-finding { word-break: break-word; }
+  .receipt-id { word-break: break-all; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+  /* Gate indicator mobile */
+  .gate-indicator { flex-wrap: wrap; }
+  .gate-label { font-size: 14px; }
+  /* Metrics grid */
+  .metrics-grid { grid-template-columns: 1fr 1fr; }
+  .metrics-grid strong { font-size: 16px; }
+  .city-panel dl { grid-template-columns: 1fr 1fr; }
+  /* Portfolio holdings — stacked blocks on mobile */
+  .holdings-header { display: none; }
+  .holdings-row { display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--line); border-radius: 8px; margin-bottom: 8px; }
+  .holdings-row input { font-size: 16px; width: 100%; max-width: 100%; box-sizing: border-box; }
+  .remove-btn { align-self: flex-end; min-height: 36px; min-width: 36px; font-size: 16px; }
+  .add-btn { min-height: 44px; width: 100%; }
+  .csv-upload input[type="file"] { font-size: 14px; width: 100%; }
+  .csv-hint { font-size: 11px; }
+  /* Holding cards */
+  .holding-header { flex-wrap: wrap; gap: 4px; }
+  .holding-card p { word-break: break-word; }
+  /* Classification badge wrap */
+  .classification-badge { max-width: 100%; white-space: normal; text-align: center; }
+  /* Panel scrolling */
+}
+@media (max-width: 400px) {
+  /* Holdings are already stacked blocks via the 768px breakpoint */
+  .district-list button { padding: 5px 8px; font-size: 10px; }
+}
+/* ---- Fallback: No WebGL ---- */
+.city-fallback { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; text-align: center; background: #101722; z-index: 50; }
+.city-fallback h2 { margin: 0 0 8px; font-size: 20px; }
+.city-fallback p { color: var(--muted); font-size: 13px; max-width: 340px; line-height: 1.5; }
+.city-fallback .fallback-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(140px,1fr)); gap: 10px; margin-top: 20px; max-width: 500px; width: 100%; }
+.city-fallback .fallback-card { padding: 12px; border: 1px solid var(--line); border-radius: 10px; text-align: left; }
+.city-fallback .fallback-card dt { font-size: 9px; color: #73877e; text-transform: uppercase; }
+.city-fallback .fallback-card dd { margin: 3px 0 0; font-size: 12px; }

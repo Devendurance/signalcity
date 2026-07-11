@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { GltfAssetLoader } from "@/lib/city/assets/GltfAssetLoader";
-import { CameraRig } from "@/lib/city/camera/CameraRig";
+import { CameraRig, type CameraRigCallbacks } from "@/lib/city/camera/CameraRig";
 import { FOUNDATION_WORLD } from "@/lib/city/domain/world";
 import { resolveAssetId } from "@/lib/city/domain/rendererState";
 import { FixedStepLoop } from "@/lib/city/core/FixedStepLoop";
@@ -14,7 +14,7 @@ import { applyDistrictStatus, applyGlobalWeather } from "@/lib/city/visuals/mark
 import { DISTRICT_SATELLITE_LAYOUT } from "@/lib/city/layout/districtLayout";
 import { TrafficDebugController, type TrafficDebugLayer } from "@/lib/city/debug/TrafficDebugController";
 import { isCityDebugEnabled, debugWarn } from "@/lib/city/debug/debugGate";
-import { DistrictLabelSystem, buildLabelAnchors } from "@/lib/city/visuals/DistrictLabelSystem";
+import { DistrictLabelSystem, buildLabelAnchors, type DistrictLabelSystemCallbacks } from "@/lib/city/visuals/DistrictLabelSystem";
 import { WeatherController } from "@/lib/city/visuals/WeatherController";
 
 export class CityRuntime {
@@ -39,6 +39,7 @@ export class CityRuntime {
     private readonly container: HTMLElement,
     tier: QualityTier,
     onSelection: (selection: SelectionMetadata | null) => void,
+    callbacks: CameraRigCallbacks,
   ) {
     this.quality = getQualitySettings(tier);
 
@@ -59,10 +60,29 @@ export class CityRuntime {
     this.renderer.shadowMap.enabled = this.quality.shadows;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
 
-    this.cameraRig = new CameraRig(canvas);
+    this.cameraRig = new CameraRig(canvas, callbacks);
     this.scene.add(this.worldRoot);
 
-    this.labelSystem = new DistrictLabelSystem(container, this.cameraRig.camera);
+    this.labelSystem = new DistrictLabelSystem(container, this.cameraRig.camera, {
+      onSelect: (districtId) => {
+        // Fire the same onSelection callback used by raycasting
+        const district = FOUNDATION_WORLD.districts.find((d) => d.id === districtId);
+        if (district) {
+          onSelection({
+            id: district.id,
+            label: district.label,
+            kind: "district",
+            detail: district.explanation.summary,
+          });
+        }
+      },
+      onHover: (districtId) => {
+        this.labelSystem.hoverDistrict(districtId);
+      },
+      onHoverEnd: () => {
+        this.labelSystem.hoverDistrict(null);
+      },
+    });
     this.weatherController = new WeatherController(this.scene, {
       mobileMode: tier === "battery-saver",
     });
@@ -94,8 +114,15 @@ export class CityRuntime {
     container: HTMLElement;
     qualityTier: QualityTier;
     onSelection: (selection: SelectionMetadata | null) => void;
+    cameraCallbacks?: CameraRigCallbacks;
   }): Promise<CityRuntime> {
-    const runtime = new CityRuntime(options.canvas, options.container, options.qualityTier, options.onSelection);
+    const runtime = new CityRuntime(
+      options.canvas,
+      options.container,
+      options.qualityTier,
+      options.onSelection,
+      options.cameraCallbacks ?? {},
+    );
     await runtime.initialize();
     runtime.resize();
     runtime.loop.start();
@@ -302,6 +329,18 @@ export class CityRuntime {
       }
     }
   }
+
+  /** Focus camera on a district's position. */
+  focusDistrict(districtId: string): void {
+    const district = FOUNDATION_WORLD.districts.find((d) => d.id === districtId);
+    if (district) {
+      const pos = new THREE.Vector3(district.position[0], district.position[1] + 4, district.position[2]);
+      this.cameraRig.focusOn(pos);
+    }
+  }
+
+  /** Get current camera rig for external focus/control. */
+  get cameraRigInstance(): CameraRig { return this.cameraRig; }
 
   private update(step: number): void {
     this.traffic?.update(step, FOUNDATION_WORLD.districts, this.quality.animateVehicle);

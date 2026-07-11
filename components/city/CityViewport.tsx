@@ -14,6 +14,7 @@ import type { TrafficDebugLayer } from "@/lib/city/debug/TrafficDebugController"
 import { isCityDebugEnabled } from "@/lib/city/debug/debugGate";
 
 type PanelView = "weather" | "claims" | "entry-gate" | "portfolio";
+type SheetState = "collapsed" | "half" | "full";
 
 export function CityViewport() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -24,6 +25,8 @@ export function CityViewport() {
   const [panelView, setPanelView] = useState<PanelView | null>(null);
   const [liveWorld, setLiveWorld] = useState<CityWorldState | null>(null);
   const [dataStatus, setDataStatus] = useState<string>("");
+  const [sheetState, setSheetState] = useState<SheetState>("collapsed");
+  const [webglFailed, setWebglFailed] = useState(false);
 
   // Fetch live backend data
   useEffect(() => {
@@ -34,8 +37,6 @@ export function CityViewport() {
       if (result.success) {
         setLiveWorld(result.data);
         setDataStatus(`Live · ${new Date(result.data.updatedAt).toLocaleTimeString()}`);
-      } else {
-        setDataStatus("Using foundation data");
       }
     }
     loadLiveData();
@@ -43,50 +44,57 @@ export function CityViewport() {
     return () => { cancelled = true; clearInterval(interval); };
   }, []);
 
-  // Three.js runtime — guarded against duplicate creation (Strict Mode safe)
+  // Three.js runtime
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    if (creatingRef.current) return; // Already creating
+    if (creatingRef.current) return;
 
     let cancelled = false;
     creatingRef.current = true;
 
-    const observer = new ResizeObserver(() => {
-      runtimeRef.current?.resize();
-    });
+    const observer = new ResizeObserver(() => runtimeRef.current?.resize());
     observer.observe(canvas);
 
     CityRuntime.create({
       canvas,
       container: canvas.parentElement!,
       qualityTier: recommendedQualityTier(),
+      cameraCallbacks: {
+        onTap: (_x, _y) => {
+          // Tap-to-deselect handled by SelectionController
+        },
+        onDoubleTap: (_x, _y) => {
+          // Focus on selected district
+          if (selection?.id) {
+            runtimeRef.current?.focusDistrict(selection.id);
+          }
+        },
+      },
       onSelection: (sel) => {
         setSelection(sel);
-        if (!sel) { setPanelView(null); return; }
+        if (!sel) {
+          setPanelView(null);
+          setSheetState("collapsed");
+          return;
+        }
         if (sel.kind === "district") {
-          // Use latest liveWorld via a ref snapshot or the state value
-          // (this callback is stable; it closes over the effect's scope)
-          setPanelView((prev) => {
-            // Determine panel from selection
-            switch (sel.id) {
-              case "claims": return "claims";
-              case "entry-gate": return "entry-gate";
-              case "portfolio": return "portfolio";
-              default: return "weather";
-            }
-          });
+          setSheetState("half");
+          switch (sel.id) {
+            case "claims": setPanelView("claims"); break;
+            case "entry-gate": setPanelView("entry-gate"); break;
+            case "portfolio": setPanelView("portfolio"); break;
+            default: setPanelView("weather"); break;
+          }
         }
       },
     }).then((created) => {
-      if (cancelled) {
-        created.dispose();
-        return;
-      }
+      if (cancelled) { created.dispose(); return; }
       runtimeRef.current = created;
       setStatus("Signal City online");
     }).catch((error: unknown) => {
       console.error("[CityViewport] CityRuntime creation failed:", error);
+      setWebglFailed(true);
       setStatus("The 3D city could not start in this browser.");
     });
 
@@ -94,19 +102,14 @@ export function CityViewport() {
       cancelled = true;
       observer.disconnect();
       creatingRef.current = false;
-
-      // Dispose the runtime asynchronously — do NOT clear the ref until dispose completes.
-      // Strict Mode unmounts then remounts; if dispose is still running when remount happens,
-      // the `creatingRef` guard prevents a duplicate create.
       const runtime = runtimeRef.current;
       if (runtime) {
         runtimeRef.current = null;
-        runtime.dispose().catch((err) => {
-          console.warn("[CityViewport] Runtime disposal warning:", err);
-        });
+        runtime.dispose().catch((err) => console.warn("[CityViewport] Dispose warning:", err));
       }
     };
-  }, []); // Run once per mount — liveWorld is fetched separately
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const activeWorld = liveWorld ?? FOUNDATION_WORLD;
   const selectedDistrict = activeWorld.districts.find((d: DistrictState) => d.id === selection?.id);
@@ -115,7 +118,48 @@ export function CityViewport() {
     const district = activeWorld.districts.find((d: DistrictState) => d.id === id);
     if (!district) return;
     setSelection({ id: district.id, label: district.label, kind: "district", detail: district.explanation.summary });
+    setSheetState("half");
+    runtimeRef.current?.focusDistrict(id);
+    switch (id) {
+      case "claims": setPanelView("claims"); break;
+      case "entry-gate": setPanelView("entry-gate"); break;
+      case "portfolio": setPanelView("portfolio"); break;
+      default: setPanelView("weather"); break;
+    }
   }, [activeWorld]);
+
+  const sheetClass = `city-panel${panelView !== "weather" ? " city-panel--wide" : ""} ${sheetState}`;
+
+  // ---- WebGL Fallback ----
+  if (webglFailed) {
+    return (
+      <section className="city-shell">
+        <header className="city-header">
+          <div><p className="city-brand">Signal City</p><p className="city-tagline">The crypto market, made visible.</p></div>
+          <p className="city-status"><span aria-hidden="true" style={{ background: "#eab308", boxShadow: "0 0 10px #eab308" }} />3D unavailable</p>
+        </header>
+        <div className="city-fallback">
+          <h2>3D City Unavailable</h2>
+          <p>Your browser does not support WebGL, or the 3D renderer could not start. All analytical features remain available.</p>
+          <dl className="fallback-grid">
+            {activeWorld.districts.filter((d: DistrictState) => d.scope === "sector").map((d: DistrictState) => (
+              <div key={d.id} className="fallback-card">
+                <dt>{d.label}</dt>
+                <dd>{d.weather.kind.replace(/_/g, " ")} · {d.weather.severity}</dd>
+              </div>
+            ))}
+          </dl>
+          <nav className="district-list" style={{ position: "static", marginTop: 16 }}>
+            {activeWorld.districts.map((d: DistrictState) => (
+              <button key={d.id} type="button" onClick={() => selectDistrict(d.id)}>
+                {d.id === "claims" ? "⚖ Claims" : d.id === "entry-gate" ? "🛂 Gate" : d.id === "portfolio" ? "🏥 Clinic" : d.subjectId.toUpperCase()}
+              </button>
+            ))}
+          </nav>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="city-shell" aria-label="Signal City 3D market map">
@@ -134,66 +178,66 @@ export function CityViewport() {
         </p>
       </header>
 
-      {/* Weather Panel */}
-      {panelView === "weather" && (
-        <aside className="city-panel" aria-live="polite">
-          <p className="panel-label">District Weather</p>
-          <h1>{selectedDistrict?.label ?? "Explore Signal City"}</h1>
-          <p>{selectedDistrict?.explanation.summary ?? "Click a district building, road, or car. Right-drag to rotate, Ctrl + right-drag to pan, and scroll to zoom."}</p>
-          <dl>
-            <div><dt>Weather</dt><dd>{selectedDistrict?.weather.kind.replaceAll("_", " ") ?? "—"}</dd></div>
-            <div><dt>Severity</dt><dd>{selectedDistrict?.weather.severity ?? "—"}</dd></div>
-            <div><dt>Confidence</dt><dd>{selectedDistrict ? `${Math.round(selectedDistrict.weather.confidence * 100)}%` : "—"}</dd></div>
-            {selectedDistrict?.city && (
-              <>
-                <div><dt>Traffic</dt><dd>{Math.round(selectedDistrict.city.trafficDensity * 100)}% density</dd></div>
-                <div><dt>Activity</dt><dd>{Math.round(selectedDistrict.city.buildingActivity * 100)}%</dd></div>
-              </>
-            )}
-            <div><dt>Status</dt><dd>{selectedDistrict?.status.replaceAll("_", " ") ?? activeWorld.systemStatus}</dd></div>
-          </dl>
-          {selectedDistrict?.weather.warnings.length ? (
-            <div className="weather-warnings">
-              {selectedDistrict.weather.warnings.map((w: string, i: number) => (
-                <p key={i} className="warning-text">⚠ {w}</p>
-              ))}
-            </div>
-          ) : null}
-          {selectedDistrict?.explanation.causes.length ? (
-            <div className="explanation-causes">
-              <p className="panel-label">Causes</p>
-              <ul>{selectedDistrict.explanation.causes.map((c: string, i: number) => <li key={i}>{c}</li>)}</ul>
-            </div>
-          ) : null}
-          {selectedDistrict?.explanation.watch.length ? (
-            <div className="explanation-watch">
-              <p className="panel-label">Watch</p>
-              <ul>{selectedDistrict.explanation.watch.map((w: string, i: number) => <li key={i}>{w}</li>)}</ul>
-            </div>
-          ) : null}
-        </aside>
-      )}
+      {/* District Panel / Bottom Sheet */}
+      <aside className={sheetClass} aria-live="polite">
+        {sheetState !== "full" && <div className="sheet-handle" onClick={() => setSheetState(sheetState === "collapsed" ? "half" : "collapsed")} />}
+        {sheetState !== "collapsed" && (
+          <button className="sheet-close" onClick={() => { setSelection(null); setPanelView(null); setSheetState("collapsed"); }} aria-label="Close">×</button>
+        )}
 
-      {/* Claims Bureau Panel */}
-      {panelView === "claims" && (
-        <aside className="city-panel city-panel--wide" aria-live="polite">
-          <ClaimsBureauPanel />
-        </aside>
-      )}
+        {/* Collapsed: minimal */}
+        {sheetState === "collapsed" && (
+          <div>
+            <p className="panel-label">{selectedDistrict?.label ?? "Explore"}</p>
+            <p style={{ fontSize: 12, color: "var(--muted)", margin: 0 }}>
+              {selectedDistrict?.weather.kind.replace(/_/g, " ") ?? "Tap a district"}
+            </p>
+          </div>
+        )}
 
-      {/* Entry Gate Panel */}
-      {panelView === "entry-gate" && (
-        <aside className="city-panel city-panel--wide" aria-live="polite">
-          <EntryGatePanel />
-        </aside>
-      )}
+        {/* Half/Full: Weather */}
+        {sheetState !== "collapsed" && panelView === "weather" && (
+          <>
+            <p className="panel-label">District Weather</p>
+            <h1>{selectedDistrict?.label ?? "Explore Signal City"}</h1>
+            <p>{selectedDistrict?.explanation.summary ?? "Click a district building, road, or car."}</p>
+            <dl>
+              <div><dt>Weather</dt><dd>{selectedDistrict?.weather.kind.replaceAll("_", " ") ?? "—"}</dd></div>
+              <div><dt>Severity</dt><dd>{selectedDistrict?.weather.severity ?? "—"}</dd></div>
+              <div><dt>Confidence</dt><dd>{selectedDistrict ? `${Math.round(selectedDistrict.weather.confidence * 100)}%` : "—"}</dd></div>
+              {selectedDistrict?.city && (
+                <>
+                  <div><dt>Traffic</dt><dd>{Math.round(selectedDistrict.city.trafficDensity * 100)}%</dd></div>
+                  <div><dt>Activity</dt><dd>{Math.round(selectedDistrict.city.buildingActivity * 100)}%</dd></div>
+                </>
+              )}
+              <div><dt>Status</dt><dd>{selectedDistrict?.status.replaceAll("_", " ") ?? activeWorld.systemStatus}</dd></div>
+            </dl>
+            {selectedDistrict?.weather.warnings.length ? (
+              <div className="weather-warnings">
+                {selectedDistrict.weather.warnings.map((w: string, i: number) => <p key={i} className="warning-text">⚠ {w}</p>)}
+              </div>
+            ) : null}
+            {selectedDistrict?.explanation.causes.length ? (
+              <div className="explanation-causes">
+                <p className="panel-label">Causes</p>
+                <ul>{selectedDistrict.explanation.causes.map((c: string, i: number) => <li key={i}>{c}</li>)}</ul>
+              </div>
+            ) : null}
+            {selectedDistrict?.explanation.watch.length ? (
+              <div className="explanation-watch">
+                <p className="panel-label">Watch</p>
+                <ul>{selectedDistrict.explanation.watch.map((w: string, i: number) => <li key={i}>{w}</li>)}</ul>
+              </div>
+            ) : null}
+          </>
+        )}
 
-      {/* Portfolio Clinic Panel */}
-      {panelView === "portfolio" && (
-        <aside className="city-panel city-panel--wide" aria-live="polite">
-          <PortfolioClinicPanel />
-        </aside>
-      )}
+        {/* Half/Full: Product panels */}
+        {sheetState !== "collapsed" && panelView === "claims" && <ClaimsBureauPanel />}
+        {sheetState !== "collapsed" && panelView === "entry-gate" && <EntryGatePanel />}
+        {sheetState !== "collapsed" && panelView === "portfolio" && <PortfolioClinicPanel />}
+      </aside>
 
       {/* District Navigation */}
       <nav className="district-list" aria-label="Available districts">
@@ -207,36 +251,28 @@ export function CityViewport() {
             {district.id === "claims" ? "⚖ Claims" :
              district.id === "entry-gate" ? "🛂 Gate" :
              district.id === "portfolio" ? "🏥 Clinic" :
+             district.id === "global" ? "GLOBAL" :
+             district.id === "memecoin" ? "MEME" :
+             district.id === "rwa" ? "RWA" :
              district.subjectId.toUpperCase()}
           </button>
         ))}
       </nav>
 
-      {/* Traffic Debug (gated) */}
+      {/* Traffic Debug */}
       {isCityDebugEnabled() && (
         <div className="traffic-debug-panel" aria-label="Traffic debug layers">
           <span>Debug</span>
           {([
-            ["G", "master"],
-            ["N", "nodes"],
-            ["E", "edges"],
-            ["I", "intersections"],
-            ["R", "route"],
-            ["O", "occupancy"],
-            ["C", "components"],
-            ["V", "reservations"],
+            ["G", "master"], ["N", "nodes"], ["E", "edges"], ["I", "intersections"],
+            ["R", "route"], ["O", "occupancy"], ["C", "components"], ["V", "reservations"],
           ] as Array<[string, TrafficDebugLayer]>).map(([key, layer]) => (
-            <button key={layer} type="button" title={layer} onClick={() => runtimeRef.current?.toggleTrafficDebug(layer)}>
-              {key}
-            </button>
+            <button key={layer} type="button" title={layer} onClick={() => runtimeRef.current?.toggleTrafficDebug(layer)}>{key}</button>
           ))}
         </div>
       )}
 
-      {/* CoinMarketCap Attribution */}
-      <footer className="city-attribution">
-        Powered by CoinMarketCap Agent Hub
-      </footer>
+      <footer className="city-attribution">Powered by CoinMarketCap Agent Hub</footer>
     </section>
   );
 }
