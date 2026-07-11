@@ -13,6 +13,9 @@ import { TrafficPool } from "@/lib/city/traffic/TrafficPool";
 import { applyDistrictStatus, applyGlobalWeather } from "@/lib/city/visuals/marketVisuals";
 import { DISTRICT_SATELLITE_LAYOUT } from "@/lib/city/layout/districtLayout";
 import { TrafficDebugController, type TrafficDebugLayer } from "@/lib/city/debug/TrafficDebugController";
+import { isCityDebugEnabled, debugWarn } from "@/lib/city/debug/debugGate";
+import { DistrictLabelSystem, buildLabelAnchors } from "@/lib/city/visuals/DistrictLabelSystem";
+import { WeatherController } from "@/lib/city/visuals/WeatherController";
 
 export class CityRuntime {
   private readonly scene = new THREE.Scene();
@@ -26,11 +29,14 @@ export class CityRuntime {
   private traffic: TrafficPool | null = null;
   private trafficDebug: TrafficDebugController | null = null;
   private readonly quality: ReturnType<typeof getQualitySettings>;
+  private readonly labelSystem: DistrictLabelSystem;
+  private readonly weatherController: WeatherController;
   private disposed = false;
   private contextLost = false;
 
   private constructor(
     private readonly canvas: HTMLCanvasElement,
+    private readonly container: HTMLElement,
     tier: QualityTier,
     onSelection: (selection: SelectionMetadata | null) => void,
   ) {
@@ -56,11 +62,17 @@ export class CityRuntime {
     this.cameraRig = new CameraRig(canvas);
     this.scene.add(this.worldRoot);
 
+    this.labelSystem = new DistrictLabelSystem(container, this.cameraRig.camera);
+    this.weatherController = new WeatherController(this.scene, {
+      mobileMode: tier === "battery-saver",
+    });
+
     this.loop = new FixedStepLoop({
       update: (step) => this.update(step),
       render: () => {
         if (this.disposed || this.contextLost) return;
         this.renderer.render(this.scene, this.cameraRig.camera);
+        this.labelSystem.update();
       },
     });
 
@@ -79,10 +91,11 @@ export class CityRuntime {
 
   static async create(options: {
     canvas: HTMLCanvasElement;
+    container: HTMLElement;
     qualityTier: QualityTier;
     onSelection: (selection: SelectionMetadata | null) => void;
   }): Promise<CityRuntime> {
-    const runtime = new CityRuntime(options.canvas, options.qualityTier, options.onSelection);
+    const runtime = new CityRuntime(options.canvas, options.container, options.qualityTier, options.onSelection);
     await runtime.initialize();
     runtime.resize();
     runtime.loop.start();
@@ -96,6 +109,7 @@ export class CityRuntime {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, this.quality.pixelRatioCap));
     this.renderer.setSize(width, height, false);
     this.cameraRig.resize(width, height);
+    this.labelSystem.resize(width, height);
   }
 
   async dispose(): Promise<void> {
@@ -114,6 +128,8 @@ export class CityRuntime {
     this.selection.dispose();
     this.trafficDebug?.dispose();
     this.cameraRig.dispose();
+    this.labelSystem.dispose();
+    this.weatherController.dispose();
 
     // Dispose local geometries/materials
     for (const resource of this.localResources) {
@@ -130,6 +146,7 @@ export class CityRuntime {
   }
 
   toggleTrafficDebug(layer: TrafficDebugLayer): boolean {
+    if (!isCityDebugEnabled()) return false;
     return this.trafficDebug?.toggle(layer) ?? false;
   }
 
@@ -249,8 +266,8 @@ export class CityRuntime {
 
     const graph = new RoadGraph(CITY_ROADS);
     const validation = graph.validateConnectivity();
-    if (validation.warnings.length && process.env.NODE_ENV !== "production") {
-      console.warn("Signal City road graph validation", validation.warnings);
+    if (isCityDebugEnabled() && validation.warnings.length) {
+      debugWarn("Signal City road graph validation", validation.warnings);
     }
 
     const cars = await Promise.all(
@@ -268,9 +285,21 @@ export class CityRuntime {
     this.worldRoot.add(...cars);
     this.traffic = new TrafficPool(graph, cars);
 
-    if (process.env.NODE_ENV !== "production") {
+    if (isCityDebugEnabled()) {
       this.trafficDebug = new TrafficDebugController(graph);
       this.scene.add(this.trafficDebug.group);
+    }
+
+    // ---- Labels ----
+    const anchors = buildLabelAnchors(FOUNDATION_WORLD.districts);
+    this.labelSystem.createLabels(anchors);
+
+    // ---- Weather ----
+    for (const district of FOUNDATION_WORLD.districts) {
+      const districtRoot = this.worldRoot.getObjectByName(`district-${district.id}`) as THREE.Group;
+      if (districtRoot) {
+        this.weatherController.applyToDistrict(districtRoot, district);
+      }
     }
   }
 
@@ -279,5 +308,6 @@ export class CityRuntime {
     if (this.traffic && this.trafficDebug) {
       this.trafficDebug.update(this.traffic.snapshot());
     }
+    this.weatherController.update(step);
   }
 }

@@ -11,6 +11,7 @@ import { PortfolioClinicPanel } from "@/components/districts/PortfolioClinicPane
 import { fetchCityState } from "@/lib/api/client";
 import type { CityWorldState, DistrictState } from "@/shared/contracts";
 import type { TrafficDebugLayer } from "@/lib/city/debug/TrafficDebugController";
+import { isCityDebugEnabled } from "@/lib/city/debug/debugGate";
 
 type PanelView = "weather" | "claims" | "entry-gate" | "portfolio";
 
@@ -58,6 +59,7 @@ export function CityViewport() {
 
     CityRuntime.create({
       canvas,
+      container: canvas.parentElement!,
       qualityTier: recommendedQualityTier(),
       onSelection: (sel) => {
         setSelection(sel);
@@ -210,8 +212,8 @@ export function CityViewport() {
         ))}
       </nav>
 
-      {/* Traffic Debug (dev only) */}
-      {process.env.NODE_ENV !== "production" && (
+      {/* Traffic Debug (gated) */}
+      {isCityDebugEnabled() && (
         <div className="traffic-debug-panel" aria-label="Traffic debug layers">
           <span>Debug</span>
           {([

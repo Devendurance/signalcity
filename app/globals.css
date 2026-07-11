@@ -66,3 +66,10 @@
 /* ---- Attribution ---- */
 .city-attribution { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); font-size: 10px; color: rgba(255,255,255,.25); pointer-events: none; }
 .data-status { color: #72df9b; }
+/* ---- District Labels (CSS2D) ---- */
+.district-label { text-align: center; color: #edf7f1; font-family: Arial,Helvetica,sans-serif; white-space: nowrap; pointer-events: auto; cursor: pointer; transition: opacity .15s; user-select: none; }
+.district-label.main-district .label-text { font-size: 13px; font-weight: 750; letter-spacing: -.02em; text-shadow: 0 1px 6px rgba(0,0,0,.7); }
+.district-label.sector-zone .label-text { font-size: 10px; font-weight: 600; letter-spacing: .02em; text-shadow: 0 1px 4px rgba(0,0,0,.8); }
+.district-label .label-subtitle { font-size: 8px; color: #9eb0a8; text-transform: uppercase; letter-spacing: .08em; margin-top: 1px; }
+.district-label.label-selected .label-text { color: #72df9b; text-shadow: 0 0 10px rgba(114,223,155,.5); }
+.district-label.label-hovered .label-text { color: #a9f5c4; }
