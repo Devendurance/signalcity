@@ -1,0 +1,62 @@
+import * as THREE from "three";
+import { GltfAssetLoader } from "@/lib/city/assets/GltfAssetLoader";
+import { CameraRig } from "@/lib/city/camera/CameraRig";
+import { FOUNDATION_WORLD } from "@/lib/city/domain/world";
+import { resolveAssetId } from "@/lib/city/domain/rendererState";
+import { FixedStepLoop } from "@/lib/city/core/FixedStepLoop";
+import { SelectionController, type SelectionMetadata } from "@/lib/city/interaction/SelectionController";
+import { getQualitySettings, type QualityTier } from "@/lib/city/performance/quality";
+import { roadAsset, roadMask, roadRotation } from "@/lib/city/roads/topology";
+import { CITY_ROADS } from "@/lib/city/layout/cityLayout";
+import { RoadGraph } from "@/lib/city/traffic/RoadGraph";
+import { TrafficPool } from "@/lib/city/traffic/TrafficPool";
+import { applyDistrictStatus, applyGlobalWeather } from "@/lib/city/visuals/marketVisuals";
+import { DISTRICT_SATELLITE_LAYOUT } from "@/lib/city/layout/districtLayout";
+import { TrafficDebugController, type TrafficDebugLayer } from "@/lib/city/debug/TrafficDebugController";
+
+export class CityRuntime {
+  private readonly scene = new THREE.Scene(); private readonly renderer: THREE.WebGLRenderer; private readonly cameraRig: CameraRig; private readonly assets = new GltfAssetLoader(); private readonly worldRoot = new THREE.Group(); private readonly localResources: Array<THREE.BufferGeometry | THREE.Material> = []; private readonly loop: FixedStepLoop; private selection: SelectionController; private traffic: TrafficPool | null = null; private trafficDebug: TrafficDebugController | null = null; private readonly quality: ReturnType<typeof getQualitySettings>;
+  private constructor(private readonly canvas: HTMLCanvasElement, tier: QualityTier, onSelection: (selection: SelectionMetadata | null) => void) {
+    this.quality = getQualitySettings(tier); this.renderer = new THREE.WebGLRenderer({ canvas, antialias: tier !== "battery-saver", powerPreference: "high-performance" }); this.renderer.outputColorSpace = THREE.SRGBColorSpace; this.renderer.toneMapping = THREE.ACESFilmicToneMapping; this.renderer.toneMappingExposure = 1.05; this.renderer.shadowMap.enabled = this.quality.shadows; this.renderer.shadowMap.type = THREE.PCFShadowMap; this.cameraRig = new CameraRig(canvas); this.scene.add(this.worldRoot);
+    this.loop = new FixedStepLoop({ update: (step) => this.update(step), render: () => this.renderer.render(this.scene, this.cameraRig.camera) });
+    this.selection = new SelectionController(canvas, this.cameraRig.camera, [this.worldRoot], (selection) => { if (selection?.kind === "vehicle") this.trafficDebug?.selectVehicle(selection.id); onSelection(selection); }); document.addEventListener("visibilitychange", this.onVisibilityChange);
+  }
+  static async create(options: { canvas: HTMLCanvasElement; qualityTier: QualityTier; onSelection: (selection: SelectionMetadata | null) => void }): Promise<CityRuntime> { const runtime = new CityRuntime(options.canvas, options.qualityTier, options.onSelection); await runtime.initialize(); runtime.resize(); runtime.loop.start(); return runtime; }
+  resize(): void { const width = Math.max(this.canvas.clientWidth, 1); const height = Math.max(this.canvas.clientHeight, 1); this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, this.quality.pixelRatioCap)); this.renderer.setSize(width, height, false); this.cameraRig.resize(width, height); }
+  async dispose(): Promise<void> { this.loop.stop(); document.removeEventListener("visibilitychange", this.onVisibilityChange); this.selection.dispose(); this.trafficDebug?.dispose(); this.cameraRig.dispose(); for (const resource of this.localResources) resource.dispose(); await this.assets.dispose(); this.renderer.dispose(); this.renderer.forceContextLoss(); }
+  toggleTrafficDebug(layer: TrafficDebugLayer): boolean { return this.trafficDebug?.toggle(layer) ?? false; }
+  private readonly onVisibilityChange = (): void => { if (document.hidden) this.loop.stop(); else this.loop.start(); };
+  private async initialize(): Promise<void> {
+    this.scene.background = new THREE.Color(0x101722); this.scene.fog = new THREE.Fog(0x101722, 8, 20);
+    const hemisphere = new THREE.HemisphereLight(0xbfdcff, 0x263423, 1.8); const sun = new THREE.DirectionalLight(0xffefd0, 3.2); sun.position.set(-9, 16, 8); sun.castShadow = this.quality.shadows; sun.shadow.mapSize.set(1024, 1024); sun.shadow.camera.left = -14; sun.shadow.camera.right = 14; sun.shadow.camera.top = 14; sun.shadow.camera.bottom = -14; sun.shadow.camera.near = 1; sun.shadow.camera.far = 40; sun.shadow.normalBias = .025; this.scene.add(hemisphere, sun);
+    const groundGeometry = new THREE.PlaneGeometry(CITY_ROADS.bounds.maxX-CITY_ROADS.bounds.minX+4,CITY_ROADS.bounds.maxZ-CITY_ROADS.bounds.minZ+4); const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x26392f, roughness: 1 }); const ground = new THREE.Mesh(groundGeometry, groundMaterial); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; this.worldRoot.add(ground); this.localResources.push(groundGeometry, groundMaterial);
+    const roads = await Promise.all(CITY_ROADS.tiles.map(async (tile) => { const mask = roadMask(tile.connections); const road = await this.assets.create(roadAsset(mask)); road.position.set(tile.coordinate[0], .005, tile.coordinate[1]); road.rotation.y += roadRotation(mask); road.userData.signalCitySelection = { id: `road-${tile.id}`, label: "Market Avenue", kind: "road", detail: "A compiled segment in the connected city road network." }; return road; })); this.worldRoot.add(...roads);
+    for (const district of FOUNDATION_WORLD.districts) {
+      const districtRoot = new THREE.Group();
+      districtRoot.name = `district-${district.id}`;
+      districtRoot.position.set(...district.position);
+      const selection = { id: district.id, label: district.label, kind: "district" as const, detail: `${district.weather.kind.replaceAll("_", " ")} · ${district.weather.severity} · ${Math.round(district.weather.confidence * 100)}% confidence — ${district.explanation.summary}` };
+      districtRoot.userData.signalCitySelection = selection;
+      const landmark = await this.assets.create(resolveAssetId(district.assetId));
+      landmark.userData.signalCitySelection = selection;
+      districtRoot.add(landmark);
+      const satellites = await Promise.all(DISTRICT_SATELLITE_LAYOUT.map(async (layout) => {
+        const building = await this.assets.create(layout.assetId);
+        building.position.set(...layout.position);
+        building.rotation.y += layout.rotationY;
+        building.userData.signalCitySelection = selection;
+        if (!this.quality.shadows) building.traverse((object) => { if (object instanceof THREE.Mesh) object.castShadow = false; });
+        return building;
+      }));
+      districtRoot.add(...satellites);
+      applyDistrictStatus(districtRoot, district);
+      this.worldRoot.add(districtRoot);
+    }
+    const globalWeather = FOUNDATION_WORLD.districts.find((district) => district.scope === "global")?.weather.kind ?? "clear";
+    applyGlobalWeather(this.scene,sun,globalWeather);
+    const graph=new RoadGraph(CITY_ROADS);const validation=graph.validateConnectivity();if(validation.warnings.length&&process.env.NODE_ENV!=="production")console.warn("Signal City road graph validation",validation.warnings);
+    const cars=await Promise.all(Array.from({length:this.quality.carPoolSize},async(_,index)=>{const car=await this.assets.create("passenger-car");car.userData.signalCitySelection={id:`vehicle-${index}`,label:"Market traffic",kind:"vehicle",detail:"A pooled vehicle following a directed lane route."};return car;})); this.worldRoot.add(...cars); this.traffic=new TrafficPool(graph,cars);
+    if(process.env.NODE_ENV!=="production"){this.trafficDebug=new TrafficDebugController(graph);this.scene.add(this.trafficDebug.group);}
+  }
+  private update(step: number): void { this.traffic?.update(step,FOUNDATION_WORLD.districts,this.quality.animateVehicle);if(this.traffic&&this.trafficDebug)this.trafficDebug.update(this.traffic.snapshot()); }
+}

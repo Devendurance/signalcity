@@ -1,0 +1,5 @@
+import * as THREE from "three";
+import type { DistrictState, WeatherKind } from "@/shared/contracts";
+const WEATHER:Record<WeatherKind,{sky:number;near:number;far:number;light:number}>={clear:{sky:0x18334a,near:20,far:48,light:3.2},partly_cloudy:{sky:0x182532,near:17,far:42,light:2.5},fog:{sky:0x647078,near:8,far:24,light:1.6},rain:{sky:0x17212b,near:14,far:36,light:1.7},storm:{sky:0x0b111b,near:10,far:30,light:1.1},heatwave:{sky:0x512b1e,near:18,far:44,light:3.8},wind_advisory:{sky:0x243746,near:16,far:40,light:2.4},cold_snap:{sky:0x263e52,near:14,far:36,light:1.9}};
+export function applyGlobalWeather(scene:THREE.Scene,sun:THREE.DirectionalLight,weather:WeatherKind){const s=WEATHER[weather];scene.background=new THREE.Color(s.sky);scene.fog=new THREE.Fog(s.sky,s.near,s.far);sun.intensity=s.light;}
+export function applyDistrictStatus(object:THREE.Object3D,district:DistrictState){object.userData.signalCityWeather=district.weather.kind;object.userData.signalCityStatus=district.status;object.traverse(child=>{child.userData.signalCityStatus=district.status;});}

@@ -1,0 +1,11 @@
+import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { clone } from "three/addons/utils/SkeletonUtils.js";
+import { ASSET_REGISTRY, type AssetId } from "./registry";
+export class GltfAssetLoader {
+  private readonly loader = new GLTFLoader(); private readonly cache = new Map<AssetId, Promise<THREE.Group>>(); private readonly atlas = new THREE.TextureLoader().load("/textures/base.png"); private readonly material: THREE.MeshLambertMaterial;
+  constructor() { this.atlas.colorSpace = THREE.SRGBColorSpace; this.atlas.flipY = false; this.material = new THREE.MeshLambertMaterial({ map: this.atlas }); }
+  async create(assetId: AssetId): Promise<THREE.Group> { const source = await this.load(assetId); const instance = clone(source) as THREE.Group; const definition = ASSET_REGISTRY[assetId]; const isRoad = assetId.startsWith("road-"); instance.scale.setScalar(definition.scale); instance.rotation.y = definition.rotationY ?? 0; instance.name = assetId; instance.traverse((object) => { if (object instanceof THREE.Mesh) { object.castShadow = !isRoad; object.receiveShadow = true; } }); return instance; }
+  private load(assetId: AssetId): Promise<THREE.Group> { const cached = this.cache.get(assetId); if (cached) return cached; const promise = this.loader.loadAsync(ASSET_REGISTRY[assetId].url).then((gltf) => { const replacedMaterials = new Set<THREE.Material>(); gltf.scene.traverse((object) => { if (!(object instanceof THREE.Mesh)) return; const materials = Array.isArray(object.material) ? object.material : [object.material]; for (const material of materials) replacedMaterials.add(material); object.material = this.material; }); for (const material of replacedMaterials) material.dispose(); return gltf.scene; }); this.cache.set(assetId, promise); return promise; }
+  async dispose(): Promise<void> { const scenes = await Promise.allSettled(this.cache.values()); const geometries = new Set<THREE.BufferGeometry>(); for (const result of scenes) { if (result.status !== "fulfilled") continue; result.value.traverse((object) => { if (object instanceof THREE.Mesh) geometries.add(object.geometry); }); } for (const geometry of geometries) geometry.dispose(); this.material.dispose(); this.atlas.dispose(); this.cache.clear(); }
+}
