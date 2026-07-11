@@ -12,7 +12,8 @@
     "lib/**/*.ts",
     "lib/**/*.tsx",
     "shared/contracts/**/*.ts",
+    "backend/src/**/*.ts",
     ".next/types/**/*.ts"
   ],
-  "exclude": ["node_modules", "backend"]
+  "exclude": ["node_modules"]
 }

@@ -16,7 +16,10 @@ import type { SkillReceipt } from "@/shared/contracts/receipt";
 
 // ---- Configuration ----
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+// Relative paths — resolve against the same origin in dev and production.
+// /api/v1/city → https://signalcity.vercel.app/api/v1/city in prod
+//             → http://localhost:3000/api/v1/city in dev
+const API_BASE = "";
 
 // ---- Response Types ----
 

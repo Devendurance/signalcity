@@ -4,7 +4,6 @@
 // This is the single entry point for producing renderer-ready state.
 // ============================================================
 
-import { v4 as uuid } from "uuid";
 import type { DistrictState, CityWorldState, DistrictScope } from "@shared/contracts/district";
 import type { NormalizedMarketSignals } from "@shared/contracts/signals";
 import type { SkillReceipt } from "@shared/contracts/receipt";
@@ -48,7 +47,7 @@ export class DistrictStateBuilder {
     config: DistrictConfig,
     previousState?: DistrictState,
   ): Promise<{ district: DistrictState; receipt: SkillReceipt }> {
-    const runId = uuid();
+    const runId = crypto.randomUUID();
 
     // Step 1: Fetch from provider
     const rawInput =
@@ -81,7 +80,7 @@ export class DistrictStateBuilder {
 
     // Step 6: Build receipt
     const receipt: SkillReceipt = {
-      id: uuid(),
+      id: crypto.randomUUID(),
       runId,
       workflows: config.scope === "global"
         ? ["Daily Market Overview", "Crypto Macro Overview", "BTC Cross-Asset Correlation"]
@@ -153,7 +152,7 @@ export class DistrictStateBuilder {
     );
 
     const world: CityWorldState = {
-      id: uuid(),
+      id: crypto.randomUUID(),
       updatedAt: now,
       dataAsOf: results[0]?.district.dataAsOf ?? now,
       nextRefreshAt: results[0]?.district.nextRefreshAt,

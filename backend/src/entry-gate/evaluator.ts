@@ -4,7 +4,6 @@
 // Judges reasoning, not outcomes. Never issues trade instructions.
 // ============================================================
 
-import { v4 as uuid } from "uuid";
 import type { GateStatus, EntryCheckRequest, EntryCheckResult } from "@shared/contracts/entry-gate";
 import type { NormalizedMarketSignals } from "@shared/contracts/signals";
 
@@ -17,7 +16,7 @@ export interface GateInput {
 
 export function evaluateEntry(input: GateInput): EntryCheckResult {
   const { request, signals } = input;
-  const runId = uuid();
+  const runId = crypto.randomUUID();
   const now = new Date().toISOString();
 
   const reason = request.reason.toLowerCase();
@@ -33,7 +32,7 @@ export function evaluateEntry(input: GateInput): EntryCheckResult {
 
   // Step 4: Build result
   return {
-    id: uuid(),
+    id: crypto.randomUUID(),
     runId,
     assetId: request.assetId,
     thesis: request.reason,

@@ -5,13 +5,7 @@
 // Produces PortfolioReports — private by default.
 // ============================================================
 
-import { v4 as uuid } from "uuid";
-import type {
-  HoldingEntry,
-  HoldingHealth,
-  HoldingDiagnosis,
-  PortfolioReport,
-} from "@shared/contracts/portfolio";
+import type { HoldingEntry, HoldingHealth, HoldingDiagnosis, PortfolioReport } from "@shared/contracts/portfolio";
 import type { NormalizedMarketSignals } from "@shared/contracts/signals";
 
 // ---- Input Types ----
@@ -28,7 +22,7 @@ export interface ClinicInput {
 
 export function diagnosePortfolio(input: ClinicInput): PortfolioReport {
   const { holdings, assetSignals, globalSignals } = input;
-  const runId = uuid();
+  const runId = crypto.randomUUID();
   const now = new Date().toISOString();
 
   if (holdings.length === 0) {
@@ -75,7 +69,7 @@ export function diagnosePortfolio(input: ClinicInput): PortfolioReport {
   );
 
   return {
-    id: uuid(),
+    id: crypto.randomUUID(),
     runId,
     overallCondition,
     primaryDiagnosis: buildPrimaryDiagnosis(
@@ -476,7 +470,7 @@ function round(value: number): number {
 
 function emptyReport(runId: string, now: string): PortfolioReport {
   return {
-    id: uuid(),
+    id: crypto.randomUUID(),
     runId,
     overallCondition: "No holdings to analyze.",
     primaryDiagnosis: "Portfolio is empty.",

@@ -4,7 +4,6 @@
 // and produces public ClaimReceipts.
 // ============================================================
 
-import { v4 as uuid } from "uuid";
 import type {
   ClaimRequest,
   ClaimReceipt,
@@ -35,7 +34,7 @@ export function decomposeClaim(claim: string, assetId?: string): SubClaim[] {
     const match = claim.match(regex);
     if (match) {
       subclaims.push({
-        id: uuid(),
+        id: crypto.randomUUID(),
         text: extractContext(claim, match[0], 80),
         metric,
         subjectId: assetId ?? "unknown",
@@ -57,7 +56,7 @@ export function decomposeClaim(claim: string, assetId?: string): SubClaim[] {
     const match = claim.match(regex);
     if (match) {
       subclaims.push({
-        id: uuid(),
+        id: crypto.randomUUID(),
         text: extractContext(claim, match[0], 80),
         metric,
         subjectId: assetId ?? "unknown",
@@ -79,7 +78,7 @@ export function decomposeClaim(claim: string, assetId?: string): SubClaim[] {
     const match = claim.match(regex);
     if (match) {
       subclaims.push({
-        id: uuid(),
+        id: crypto.randomUUID(),
         text: extractContext(claim, match[0], 80),
         metric,
         subjectId: assetId ?? "unknown",
@@ -113,7 +112,7 @@ export function decomposeClaim(claim: string, assetId?: string): SubClaim[] {
     const match = claim.match(regex);
     if (match) {
       subclaims.push({
-        id: uuid(),
+        id: crypto.randomUUID(),
         text: extractContext(claim, match[0], 80),
         metric,
         subjectId: assetId ?? "unknown",
@@ -128,7 +127,7 @@ export function decomposeClaim(claim: string, assetId?: string): SubClaim[] {
   // If no patterns matched, create a single generic subclaim
   if (subclaims.length === 0) {
     subclaims.push({
-      id: uuid(),
+      id: crypto.randomUUID(),
       text: claim.length > 120 ? claim.slice(0, 117) + "..." : claim,
       metric: "general_claim",
       subjectId: assetId ?? "unknown",
@@ -335,7 +334,7 @@ export function investigateClaim(
   request: ClaimRequest,
   evidence: SubClaimEvidence,
 ): InvestigationResult {
-  const runId = uuid();
+  const runId = crypto.randomUUID();
   const now = new Date().toISOString();
 
   // Step 1: Decompose
@@ -358,7 +357,7 @@ export function investigateClaim(
 
   // Step 6: Build receipt
   const receipt: ClaimReceipt = {
-    id: uuid(),
+    id: crypto.randomUUID(),
     runId,
     originalClaim: request.claim,
     sourceUrl: request.sourceUrl,
