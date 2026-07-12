@@ -14,8 +14,9 @@ import { applyDistrictStatus, applyGlobalWeather } from "@/lib/city/visuals/mark
 import { DISTRICT_SATELLITE_LAYOUT } from "@/lib/city/layout/districtLayout";
 import { TrafficDebugController, type TrafficDebugLayer } from "@/lib/city/debug/TrafficDebugController";
 import { isCityDebugEnabled, debugWarn } from "@/lib/city/debug/debugGate";
-import { DistrictLabelSystem, buildLabelAnchors, type DistrictLabelSystemCallbacks } from "@/lib/city/visuals/DistrictLabelSystem";
+import { DistrictLabelSystem, buildLabelAnchors } from "@/lib/city/visuals/DistrictLabelSystem";
 import { WeatherController } from "@/lib/city/visuals/WeatherController";
+import type { CityWorldState, DistrictState } from "@/shared/contracts";
 
 export class CityRuntime {
   private readonly scene = new THREE.Scene();
@@ -31,6 +32,8 @@ export class CityRuntime {
   private readonly quality: ReturnType<typeof getQualitySettings>;
   private readonly labelSystem: DistrictLabelSystem;
   private readonly weatherController: WeatherController;
+  private currentWorld: CityWorldState = FOUNDATION_WORLD;
+  private sun: THREE.DirectionalLight | null = null;
   private disposed = false;
   private contextLost = false;
 
@@ -66,7 +69,7 @@ export class CityRuntime {
     this.labelSystem = new DistrictLabelSystem(container, this.cameraRig.camera, {
       onSelect: (districtId) => {
         // Fire the same onSelection callback used by raycasting
-        const district = FOUNDATION_WORLD.districts.find((d) => d.id === districtId);
+        const district = this.currentWorld.districts.find((d) => d.id === districtId);
         if (district) {
           onSelection({
             id: district.id,
@@ -220,6 +223,7 @@ export class CityRuntime {
     sun.shadow.camera.near = 1;
     sun.shadow.camera.far = 40;
     sun.shadow.normalBias = 0.025;
+    this.sun = sun;
     this.scene.add(hemisphere, sun);
 
     const groundGeometry = new THREE.PlaneGeometry(
@@ -330,9 +334,32 @@ export class CityRuntime {
     }
   }
 
+  /** Apply a newer canonical city snapshot without rebuilding the scene. */
+  applyWorldState(world: CityWorldState): void {
+    if (this.disposed || this.contextLost) return;
+    this.currentWorld = world;
+
+    for (const district of world.districts) {
+      const root = this.worldRoot.getObjectByName(`district-${district.id}`);
+      if (!(root instanceof THREE.Group)) continue;
+      applyDistrictStatus(root, district);
+      this.weatherController.applyToDistrict(root, district);
+      this.labelSystem.updateSubtitle(district.id, district.weather.kind.replaceAll("_", " "));
+      root.userData.signalCitySelection = this.selectionMetadata(district);
+      root.traverse((object) => {
+        if (object.userData.signalCitySelection?.kind === "district") {
+          object.userData.signalCitySelection = this.selectionMetadata(district);
+        }
+      });
+    }
+
+    const globalWeather = world.districts.find((district) => district.scope === "global")?.weather.kind;
+    if (globalWeather && this.sun) applyGlobalWeather(this.scene, this.sun, globalWeather);
+  }
+
   /** Focus camera on a district's position. */
   focusDistrict(districtId: string): void {
-    const district = FOUNDATION_WORLD.districts.find((d) => d.id === districtId);
+    const district = this.currentWorld.districts.find((d) => d.id === districtId);
     if (district) {
       const pos = new THREE.Vector3(district.position[0], district.position[1] + 4, district.position[2]);
       this.cameraRig.focusOn(pos);
@@ -342,8 +369,17 @@ export class CityRuntime {
   /** Get current camera rig for external focus/control. */
   get cameraRigInstance(): CameraRig { return this.cameraRig; }
 
+  private selectionMetadata(district: DistrictState): SelectionMetadata {
+    return {
+      id: district.id,
+      label: district.label,
+      kind: "district",
+      detail: `${district.weather.kind.replaceAll("_", " ")} · ${district.weather.severity} · ${Math.round(district.weather.confidence * 100)}% confidence — ${district.explanation.summary}`,
+    };
+  }
+
   private update(step: number): void {
-    this.traffic?.update(step, FOUNDATION_WORLD.districts, this.quality.animateVehicle);
+    this.traffic?.update(step, this.currentWorld.districts, this.quality.animateVehicle);
     if (this.traffic && this.trafficDebug) {
       this.trafficDebug.update(this.traffic.snapshot());
     }

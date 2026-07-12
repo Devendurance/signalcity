@@ -19,6 +19,7 @@ type SheetState = "collapsed" | "half" | "full";
 export function CityViewport() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const runtimeRef = useRef<CityRuntime | null>(null);
+  const liveWorldRef = useRef<CityWorldState | null>(null);
   const creatingRef = useRef(false);
   const [selection, setSelection] = useState<SelectionMetadata | null>(null);
   const [status, setStatus] = useState("Loading verified city assets…");
@@ -35,7 +36,9 @@ export function CityViewport() {
       const result = await fetchCityState();
       if (cancelled) return;
       if (result.success) {
+        liveWorldRef.current = result.data;
         setLiveWorld(result.data);
+        runtimeRef.current?.applyWorldState(result.data);
         setDataStatus(`Live · ${new Date(result.data.updatedAt).toLocaleTimeString()}`);
       }
     }
@@ -61,10 +64,10 @@ export function CityViewport() {
       container: canvas.parentElement!,
       qualityTier: recommendedQualityTier(),
       cameraCallbacks: {
-        onTap: (_x, _y) => {
+        onTap: () => {
           // Tap-to-deselect handled by SelectionController
         },
-        onDoubleTap: (_x, _y) => {
+        onDoubleTap: () => {
           // Focus on selected district
           if (selection?.id) {
             runtimeRef.current?.focusDistrict(selection.id);
@@ -91,6 +94,7 @@ export function CityViewport() {
     }).then((created) => {
       if (cancelled) { created.dispose(); return; }
       runtimeRef.current = created;
+      if (liveWorldRef.current) created.applyWorldState(liveWorldRef.current);
       setStatus("Signal City online");
     }).catch((error: unknown) => {
       console.error("[CityViewport] CityRuntime creation failed:", error);

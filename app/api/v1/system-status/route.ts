@@ -1,9 +1,12 @@
 // GET /api/v1/system-status
 
-import { getAdapter, apiSuccess, apiError } from "../adapter";
+import { getAdapter, getCityDataMode, apiSuccess, apiError } from "../adapter";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(): Promise<Response> {
   try {
+    const mode = getCityDataMode();
     const adapter = getAdapter();
     const cmcHealthy = await adapter.healthCheck();
 
@@ -14,16 +17,17 @@ export async function GET(): Promise<Response> {
         api: { status: "operational" },
         coinmarketcap: {
           status: cmcHealthy ? "operational" : "degraded",
+          sourceMode: mode,
           message: cmcHealthy
-            ? "CMC connection healthy"
-            : "CMC connection unavailable — using fixture data",
+            ? `CoinMarketCap ${mode} provider healthy`
+            : "CoinMarketCap provider unavailable; no synthetic production fallback is served.",
         },
-        cityState: { status: "operational", freshness: "fresh" },
+        cityState: { status: cmcHealthy ? "operational" : "degraded", cache: "Next Data Cache", refreshIntervalSeconds: 300 },
       },
-      version: "1.0.0",
+      version: "1.1.0",
     });
   } catch (error) {
     console.error("[api/system-status] Failed:", error);
-    return apiError("STATUS_FAILED", "Failed to retrieve system status.");
+    return apiError("STATUS_FAILED", "Failed to retrieve system status.", 503);
   }
 }

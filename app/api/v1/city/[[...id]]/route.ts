@@ -1,38 +1,34 @@
-// GET /api/v1/city — full city state
-// GET /api/v1/city/[id] — single district
+// GET /api/v1/city — cached canonical city state
+// GET /api/v1/city/[id] — one district from that same snapshot
 
-import { getAdapter, apiSuccess, apiError } from "../../adapter";
-import { DistrictStateBuilder, DEFAULT_DISTRICTS } from "@engine/market-engine/district-builder";
+import { apiSuccess, apiError } from "../../adapter";
+import { getCachedCityState } from "../city-state";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id?: string[] }> },
 ): Promise<Response> {
   try {
-    const adapter = getAdapter();
-    const builder = new DistrictStateBuilder(adapter);
-    const resolved = await params;
+    const [{ world, mode, cachedAt }, resolved] = await Promise.all([getCachedCityState(), params]);
     const districtId = resolved.id?.[0];
 
     if (districtId) {
-      const config = DEFAULT_DISTRICTS.find((d) => d.id === districtId);
-      if (!config) {
+      const district = world.districts.find((candidate) => candidate.id === districtId);
+      if (!district) {
         return apiError(
           "DISTRICT_NOT_FOUND",
-          `District "${districtId}" not found. Available: ${DEFAULT_DISTRICTS.map((d) => d.id).join(", ")}`,
+          `District "${districtId}" not found. Available: ${world.districts.map((d) => d.id).join(", ")}`,
           404,
         );
       }
-      const { district } = await builder.buildDistrict(config);
-      return apiSuccess(district);
+      return apiSuccess(district, { sourceMode: mode, cachedAt });
     }
 
-    // Full city
-    const { world } = await builder.buildCity();
-    return apiSuccess(world);
-
+    return apiSuccess(world, { sourceMode: mode, cachedAt });
   } catch (error) {
-    console.error("[api/city] Failed:", error);
-    return apiError("CITY_BUILD_FAILED", "Failed to generate city state.");
+    console.error("[api/city] Failed to generate canonical city state:", error);
+    return apiError("CITY_DATA_UNAVAILABLE", "Live city data is currently unavailable. Please retry shortly.", 503);
   }
 }

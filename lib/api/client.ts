@@ -12,7 +12,6 @@ import type {
 import type { ClaimRequest, ClaimReceipt } from "@/shared/contracts/claims";
 import type { EntryCheckRequest, EntryCheckResult } from "@/shared/contracts/entry-gate";
 import type { HoldingEntry, PortfolioReport } from "@/shared/contracts/portfolio";
-import type { SkillReceipt } from "@/shared/contracts/receipt";
 
 // ---- Configuration ----
 

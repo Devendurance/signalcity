@@ -1,51 +1,41 @@
 // ============================================================
-// Signal City — API Route Adapter Factory
-// Creates the appropriate CMC adapter for each request.
-// FixtureAdapter for dev/testing, CMCFetchAdapter for production.
+// Signal City — API Provider Factory
+// Live CMC in production; fixtures only for local development/test.
 // ============================================================
 
-import { FixtureAdapter } from "@engine/coinmarketcap/adapter";
+import { CMCRestAdapter, FixtureAdapter, type ICMCAdapter } from "@engine/coinmarketcap/adapter";
 
-let _fixtureAdapter: FixtureAdapter | null = null;
+export type CityDataMode = "live" | "fixture" | "misconfigured";
+
+let fixtureAdapter: FixtureAdapter | null = null;
+let liveAdapter: CMCRestAdapter | null = null;
+
+export function getCityDataMode(): CityDataMode {
+  if (process.env.CMC_API_KEY) return "live";
+  return process.env.NODE_ENV === "production" ? "misconfigured" : "fixture";
+}
 
 /**
- * Returns the CMC adapter for the current environment.
- * In production with CMC_API_KEY set, uses live REST API.
- * Otherwise falls back to fixture data.
+ * Production never silently substitutes fixture market data. A missing CMC key
+ * is an explicit configuration failure. Fixtures are available only locally.
  */
-export function getAdapter(): FixtureAdapter {
-  // TODO: When CMC_API_KEY is set, return CMCFetchAdapter
-  // For now, always use fixtures — they produce real engine output
-  if (!_fixtureAdapter) {
-    _fixtureAdapter = new FixtureAdapter();
+export function getAdapter(): ICMCAdapter {
+  const mode = getCityDataMode();
+  if (mode === "live") {
+    if (!liveAdapter) liveAdapter = new CMCRestAdapter({ apiKey: process.env.CMC_API_KEY });
+    return liveAdapter;
   }
-  return _fixtureAdapter;
+  if (mode === "fixture") {
+    if (!fixtureAdapter) fixtureAdapter = new FixtureAdapter();
+    return fixtureAdapter;
+  }
+  throw new Error("CMC_API_KEY is not configured in this production deployment.");
 }
 
-/**
- * Generate a unique ID (replaces uuid dependency).
- */
-export function generateId(): string {
-  return crypto.randomUUID();
+export function apiError(code: string, message: string, status = 500): Response {
+  return Response.json({ success: false, error: { code, message } }, { status });
 }
 
-/**
- * Standard API error response.
- */
-export function apiError(
-  code: string,
-  message: string,
-  status = 500,
-): Response {
-  return Response.json(
-    { success: false, error: { code, message } },
-    { status },
-  );
-}
-
-/**
- * Standard API success response.
- */
 export function apiSuccess<T>(data: T, meta?: Record<string, unknown>): Response {
   return Response.json({ success: true, data, ...(meta ? { meta } : {}) });
 }

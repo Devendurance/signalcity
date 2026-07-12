@@ -9,7 +9,6 @@ import type { DistrictState, WeatherSeverity } from "@/shared/contracts";
 import {
   CloudSystem,
   densityFromWeather,
-  type CloudDensity,
   type CloudClusterConfig,
 } from "./CloudSystem";
 
@@ -53,8 +52,14 @@ export class WeatherController {
   applyToDistrict(group: THREE.Group, district: DistrictState): void {
     const { id } = district;
     const { kind, severity } = district.weather;
-    const prevKind = this.districtWeather.get(id);
+    const previousKind = this.districtWeather.get(id);
     this.districtWeather.set(id, kind);
+
+    if (previousKind === "storm" && kind !== "storm") {
+      const priorStorm = this.stormStates.get(id);
+      priorStorm?.light.removeFromParent();
+      this.stormStates.delete(id);
+    }
 
     // Reset building emissive
     group.traverse((obj) => {
@@ -100,7 +105,7 @@ export class WeatherController {
         this.applyRain(group);
         break;
       case "storm":
-        this.applyStorm(group, district, severity);
+        this.applyStorm(group, district);
         break;
       case "heatwave":
         this.applyHeatwave(group, severity);
@@ -173,7 +178,6 @@ export class WeatherController {
   private applyStorm(
     group: THREE.Group,
     district: DistrictState,
-    _severity: WeatherSeverity,
   ): void {
     this.ensureRainPool();
 
@@ -293,8 +297,7 @@ export class WeatherController {
   private updateRain(dt: number): void {
     if (!this.rainPool || !this.rainGeometry || !this.rainVelocities) return;
 
-    const hasStorm = this.stormStates.size > 0;
-    // Also show rain if any district has "rain" weather
+    // Show rain only while at least one district needs it.
     const hasRainDistrict = [...this.districtWeather.values()].some(
       (w) => w === "rain" || w === "storm",
     );
