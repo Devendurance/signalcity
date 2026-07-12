@@ -35,6 +35,5 @@ export async function getCachedCityState(): Promise<CachedCityState> {
 
 /** Mark the snapshot stale. The following read rebuilds it from CMC. */
 export function invalidateCityState(): void {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (revalidateTag as any)(CITY_STATE_TAG);
+  revalidateTag(CITY_STATE_TAG, "max");
 }
