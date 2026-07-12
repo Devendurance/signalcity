@@ -236,7 +236,7 @@ export class DistrictLabelSystem {
     this.css2DRenderer.domElement.style.top = "0";
     this.css2DRenderer.domElement.style.left = "0";
     this.css2DRenderer.domElement.style.pointerEvents = "none"; // Layer is non-blocking
-    this.css2DRenderer.domElement.style.zIndex = "10";
+    this.css2DRenderer.domElement.style.zIndex = "5";
     this.domElement.appendChild(this.css2DRenderer.domElement);
   }
 
