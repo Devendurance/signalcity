@@ -65,6 +65,7 @@
 .metrics-grid strong { font-size: 18px; }
 /* ---- Attribution ---- */
 .city-attribution { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); font-size: 10px; color: rgba(255,255,255,.25); pointer-events: none; }
+.audio-toggle { position: absolute; top: 28px; right: 28px; z-index: var(--z-nav); width: 36px; height: 36px; border: 1px solid var(--line); border-radius: 10px; background: rgba(13,20,28,.78); font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 .data-status { color: #72df9b; }
 /* ---- District Labels (CSS2D) ---- */
 .district-label { text-align: center; color: #edf7f1; font-family: Arial,Helvetica,sans-serif; white-space: nowrap; pointer-events: auto; cursor: pointer; transition: opacity .15s; user-select: none; }
@@ -96,6 +97,7 @@
   .district-label.sector-zone .label-text { font-size: 8px; }
   .district-label .label-subtitle { display: none; }
   .city-attribution { font-size: 8px; }
+  .audio-toggle { top: 16px; right: 16px; width: 30px; height: 30px; font-size: 14px; }
   .district-form input, .district-form textarea, .district-form select { font-size: 16px; }
   /* Full-width form controls */
   .district-form input:not([type="file"]), .district-form textarea, .district-form select { width: 100%; max-width: 100%; box-sizing: border-box; }

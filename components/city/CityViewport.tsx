@@ -12,6 +12,7 @@ import { fetchCityState } from "@/lib/api/client";
 import type { CityWorldState, DistrictState } from "@/shared/contracts";
 import type { TrafficDebugLayer } from "@/lib/city/debug/TrafficDebugController";
 import { isCityDebugEnabled } from "@/lib/city/debug/debugGate";
+import { AudioController } from "@/components/city/AudioController";
 
 type PanelView = "weather" | "claims" | "entry-gate" | "portfolio";
 type SheetState = "collapsed" | "half" | "full";
@@ -117,6 +118,9 @@ export function CityViewport() {
 
   const activeWorld = liveWorld ?? FOUNDATION_WORLD;
   const selectedDistrict = activeWorld.districts.find((d: DistrictState) => d.id === selection?.id);
+  const isStormy = activeWorld.districts.some(
+    (d: DistrictState) => d.weather.kind === "storm" || d.weather.kind === "rain",
+  );
 
   const selectDistrict = useCallback((id: string) => {
     const district = activeWorld.districts.find((d: DistrictState) => d.id === id);
@@ -181,6 +185,9 @@ export function CityViewport() {
           {dataStatus && <span className="data-status"> · {dataStatus}</span>}
         </p>
       </header>
+
+      {/* Audio */}
+      <AudioController isStormy={isStormy} hasWeatherData={!!liveWorld} />
 
       {/* District Panel / Bottom Sheet */}
       <aside className={sheetClass} aria-live="polite">
