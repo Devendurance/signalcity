@@ -12,6 +12,12 @@ import {
   type CloudClusterConfig,
 } from "./CloudSystem";
 
+// Weather score map for city-wide averaging
+const WEATHER_SCORE: Record<string, number> = {
+  clear: 3, partly_cloudy: 2, fog: 0, rain: -1, storm: -2,
+  heatwave: 1, wind_advisory: 0, cold_snap: -1,
+};
+
 // ---- Types ----
 
 export interface WeatherControllerConfig {
@@ -124,6 +130,20 @@ export class WeatherController {
     this.clouds.update(dt);
     this.updateRain(dt);
     this.updateStorms(dt);
+  }
+
+  /** Set city-wide weather — affects global effects like fog. */
+  setCityWeather(kind: string): void {
+    if (kind === "fog") {
+      this.scene.fog = new THREE.FogExp2(0x889999, 0.025);
+      this.scene.background = new THREE.Color(0x889999);
+    } else if (kind === "storm" || kind === "rain") {
+      this.scene.fog = new THREE.FogExp2(0x334455, 0.012);
+      this.scene.background = new THREE.Color(0x1a2233);
+    } else {
+      this.scene.fog = null;
+      this.scene.background = new THREE.Color(0x101722);
+    }
   }
 
   dispose(): void {
@@ -297,13 +317,15 @@ export class WeatherController {
   private updateRain(dt: number): void {
     if (!this.rainPool || !this.rainGeometry || !this.rainVelocities) return;
 
-    // Show rain only while at least one district needs it.
-    const hasRainDistrict = [...this.districtWeather.values()].some(
-      (w) => w === "rain" || w === "storm",
-    );
-    this.rainPool.visible = hasRainDistrict;
+    // Show rain only when city-wide weather is rain or storm
+    const weatherKinds = [...this.districtWeather.values()];
+    const avgScore = weatherKinds.length > 0
+      ? weatherKinds.reduce((sum, k) => sum + (WEATHER_SCORE[k] ?? 0), 0) / weatherKinds.length
+      : 2;
+    const hasRain = avgScore < 0.5;
+    this.rainPool.visible = hasRain;
 
-    if (!hasRainDistrict) return;
+    if (!hasRain) return;
 
     const positions = this.rainGeometry.attributes.position.array as Float32Array;
     const spreadX = 30;

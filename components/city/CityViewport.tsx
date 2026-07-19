@@ -118,9 +118,33 @@ export function CityViewport() {
 
   const activeWorld = liveWorld ?? FOUNDATION_WORLD;
   const selectedDistrict = activeWorld.districts.find((d: DistrictState) => d.id === selection?.id);
-  const isStormy = activeWorld.districts.some(
-    (d: DistrictState) => d.weather.kind === "storm" || d.weather.kind === "rain",
-  );
+
+  // ---- City-wide weather (average of all districts) ----
+  const districtWeatherKinds = activeWorld.districts.map((d: DistrictState) => d.weather.kind);
+
+  const WEATHER_SCORES: Record<string, number> = {
+    clear: 3, partly_cloudy: 2, fog: 0, rain: -1, storm: -2,
+    heatwave: 1, wind_advisory: 0, cold_snap: -1,
+  };
+  const avgScore = districtWeatherKinds.length > 0
+    ? districtWeatherKinds.reduce((sum, kind) => sum + (WEATHER_SCORES[kind] ?? 0), 0) / districtWeatherKinds.length
+    : 2;
+
+  let cityWeather: string;
+  if (avgScore >= 2.5) cityWeather = "clear";
+  else if (avgScore >= 1.5) cityWeather = "partly_cloudy";
+  else if (avgScore >= 0.5) cityWeather = "fog";
+  else if (avgScore >= -0.5) cityWeather = "rain";
+  else cityWeather = "storm";
+
+  const isStormy = cityWeather === "storm" || cityWeather === "rain";
+
+  // ---- Apply city-wide weather to Three.js scene ----
+  useEffect(() => {
+    if (cityWeather && runtimeRef.current) {
+      runtimeRef.current.setCityWeather(cityWeather);
+    }
+  }, [cityWeather]);
 
   const selectDistrict = useCallback((id: string) => {
     const district = activeWorld.districts.find((d: DistrictState) => d.id === id);
@@ -180,9 +204,14 @@ export function CityViewport() {
           <p className="city-tagline">The crypto market, made visible.</p>
         </div>
         <p className="city-status">
-          <span aria-hidden="true" />
-          {status}
-          {dataStatus && <span className="data-status"> · {dataStatus}</span>}
+          <span aria-hidden="true" className="status-dot" />
+          <span className="status-text">{status}</span>
+          {dataStatus && <span className="status-separator">·</span>}
+          {dataStatus && <span className="status-text">{dataStatus}</span>}
+          <span className="status-separator">·</span>
+          <span className="status-weather" title={`Average across ${activeWorld.districts.length} districts`}>
+            {cityWeather.replaceAll("_", " ")}
+          </span>
         </p>
       </header>
 

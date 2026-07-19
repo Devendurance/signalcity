@@ -357,6 +357,11 @@ export class CityRuntime {
     if (globalWeather && this.sun) applyGlobalWeather(this.scene, this.sun, globalWeather);
   }
 
+  /** Set city-wide weather for global effects (fog, sky). Called from CityViewport. */
+  setCityWeather(kind: string): void {
+    this.weatherController.setCityWeather(kind);
+  }
+
   /** Focus camera on a district's position. */
   focusDistrict(districtId: string): void {
     const district = this.currentWorld.districts.find((d) => d.id === districtId);

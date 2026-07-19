@@ -7,19 +7,8 @@ interface AudioControllerProps {
   hasWeatherData: boolean;
 }
 
-// Global AudioContext (shared across hot-reloads)
-let audioCtx: AudioContext | null = null;
-function getAudioCtx(): AudioContext {
-  if (!audioCtx) audioCtx = new AudioContext();
-  if (audioCtx.state === "suspended") audioCtx.resume();
-  return audioCtx;
-}
-
-type ActiveTrack = {
-  source: AudioBufferSourceNode;
-  gain: GainNode;
-  src: string;
-};
+const STORM_TRACK = "/audio/rain-thunderstorm.mp3";
+const CLEAR_TRACK = "/audio/clear-city.mp3";
 
 export function AudioController({ isStormy, hasWeatherData }: AudioControllerProps) {
   const [muted, setMuted] = useState(() => {
@@ -29,80 +18,75 @@ export function AudioController({ isStormy, hasWeatherData }: AudioControllerPro
     return false;
   });
 
-  const active = useRef<ActiveTrack | null>(null);
-  const buffers = useRef<Map<string, AudioBuffer>>(new Map());
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const currentTrackRef = useRef<string | null>(null);
 
   const targetTrack: string | null = !hasWeatherData
     ? null
-    : isStormy
-      ? "/audio/rain-thunderstorm.mp3"
-      : "/audio/clear-city.mp3";
+    : isStormy ? STORM_TRACK : CLEAR_TRACK;
 
-  // ---- Load and switch tracks ----
+  // Switch track when weather changes
   useEffect(() => {
     if (!targetTrack) return;
-    if (active.current?.src === targetTrack) return;
+    if (currentTrackRef.current === targetTrack) return;
 
-    const ctx = getAudioCtx();
-    let cancelled = false;
-
-    async function loadAndPlay() {
-      // Load buffer (cached)
-      let buffer = buffers.current.get(targetTrack!);
-      if (!buffer) {
-        const resp = await fetch(targetTrack!);
-        buffer = await ctx.decodeAudioData(await resp.arrayBuffer());
-        buffers.current.set(targetTrack!, buffer);
-      }
-
-      if (cancelled) return;
-
-      // Stop previous
-      const prev = active.current;
-      if (prev) {
-        try { prev.source.stop(0); } catch { /* ok */ }
-      }
-
-      // Start new
-      const source = ctx.createBufferSource();
-      source.buffer = buffer;
-      source.loop = true;
-
-      const gain = ctx.createGain();
-      gain.gain.value = muted ? 0 : 0.15;
-      source.connect(gain);
-      gain.connect(ctx.destination);
-
-      source.start(0);
-      active.current = { source, gain, src: targetTrack! };
+    // Create/reuse audio element
+    if (!audioRef.current) {
+      audioRef.current = new Audio();
+      audioRef.current.loop = true;
+      audioRef.current.volume = muted ? 0 : 0.15;
     }
 
-    loadAndPlay().catch((err) => console.warn("[Audio] load failed:", err));
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [targetTrack]);
+    const audio = audioRef.current;
+    audio.src = targetTrack;
+    audio.load();
 
-  // ---- Mute toggle (instant, no restart) ----
-  const toggleMute = useCallback(() => {
-    setMuted((prev) => {
-      const next = !prev;
-      if (typeof localStorage !== "undefined") {
-        localStorage.setItem("signalcity-audio-muted", String(next));
-      }
-      return next;
-    });
+    // Try autoplay — will fail silently if blocked by browser
+    const playPromise = audio.play();
+    if (playPromise) {
+      playPromise.catch(() => {
+        // Autoplay blocked — wait for user interaction
+        console.log("[Audio] Waiting for first interaction to start music");
+        const startOnTap = () => {
+          if (audioRef.current && currentTrackRef.current === targetTrack) {
+            audioRef.current.play().catch(() => {});
+          }
+        };
+        window.addEventListener("click", startOnTap, { once: true });
+        window.addEventListener("keydown", startOnTap, { once: true });
+      });
+    }
 
-    // Apply instantly to the active gain node
-    if (active.current) {
-      active.current.gain.gain.value = !muted ? 0 : 0.15;
+    currentTrackRef.current = targetTrack;
+  }, [targetTrack, muted]);
+
+  // Update volume when muted changes
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = muted ? 0 : 0.15;
     }
   }, [muted]);
 
-  // ---- Pause when tab hidden ----
+  const toggleMute = useCallback(() => {
+    setMuted((prev) => {
+      const next = !prev;
+      localStorage.setItem("signalcity-audio-muted", String(next));
+      if (audioRef.current) {
+        audioRef.current.volume = next ? 0 : 0.15;
+      }
+      return next;
+    });
+  }, []);
+
+  // Pause when tab hidden
   useEffect(() => {
     const onVis = () => {
-      if (active.current) {
-        active.current.gain.gain.value = document.hidden ? 0 : muted ? 0 : 0.15;
+      if (audioRef.current) {
+        if (document.hidden) {
+          audioRef.current.pause();
+        } else if (!muted && currentTrackRef.current) {
+          audioRef.current.play().catch(() => {});
+        }
       }
     };
     document.addEventListener("visibilitychange", onVis);
