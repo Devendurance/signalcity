@@ -33,6 +33,7 @@ export class CityRuntime {
   private readonly labelSystem: DistrictLabelSystem;
   private readonly weatherController: WeatherController;
   private currentWorld: CityWorldState = FOUNDATION_WORLD;
+  private _cityWeather: string | null = null;
   private sun: THREE.DirectionalLight | null = null;
   private disposed = false;
   private contextLost = false;
