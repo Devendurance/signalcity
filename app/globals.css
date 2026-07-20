@@ -67,6 +67,17 @@
 .city-attribution { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); font-size: 10px; color: rgba(255,255,255,.25); pointer-events: none; }
 .audio-toggle { position: absolute; top: 84px; right: 28px; z-index: var(--z-nav); width: 36px; height: 36px; border: 1px solid var(--line); border-radius: 10px; background: rgba(13,20,28,.78); font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 .data-status { color: #72df9b; }
+/* ---- Ticker Bars ---- */
+.ticker-bar { position: absolute; top: 50%; transform: translateY(-50%); z-index: var(--z-nav); width: 180px; max-height: 60vh; overflow-y: auto; padding: 10px 12px; border: 1px solid rgba(255,255,255,.06); border-radius: 12px; background: rgba(13,20,28,.55); backdrop-filter: blur(8px); pointer-events: auto; }
+.ticker-left { left: 10px; }
+.ticker-right { right: 10px; }
+.ticker-title { margin: 0 0 8px; color: #84cba2; font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.ticker-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.ticker-row { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; font-size: 11px; color: #dce9e2; }
+.ticker-symbol { font-weight: 700; color: #edf7f1; }
+.ticker-price { color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+.ticker-change { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; font-size: 10px; }
+@media (max-width: 900px) { .ticker-bar { display: none; } }
 /* ---- District Labels (CSS2D) ---- */
 .district-label { text-align: center; color: #edf7f1; font-family: Arial,Helvetica,sans-serif; white-space: nowrap; pointer-events: auto; cursor: pointer; transition: opacity .15s; user-select: none; }
 .district-label.main-district .label-text { font-size: 13px; font-weight: 750; letter-spacing: -.02em; text-shadow: 0 1px 6px rgba(0,0,0,.7); }

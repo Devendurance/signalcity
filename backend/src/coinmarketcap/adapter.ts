@@ -18,6 +18,7 @@ export interface ICMCAdapter {
   fetchMarketOverview(scope: "global" | string): Promise<NormalizationInput>;
   fetchAssetData(assetId: string): Promise<NormalizationInput>;
   healthCheck(): Promise<boolean>;
+  request?(path: string): Promise<Record<string, unknown>>;
 }
 
 type CmcRecord = Record<string, unknown>;
@@ -108,7 +109,7 @@ export class CMCRestAdapter implements ICMCAdapter {
     }
   }
 
-  private async request(path: string): Promise<CmcRecord> {
+  async request(path: string): Promise<CmcRecord> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
     try {

@@ -315,17 +315,20 @@ export class WeatherController {
   }
 
   private updateRain(dt: number): void {
-    if (!this.rainPool || !this.rainGeometry || !this.rainVelocities) return;
+    if (!this.rainGeometry || !this.rainVelocities) return;
 
-    // Show rain only when city-wide weather is rain or storm
+    // Show rain when city-wide weather is rain or storm
     const weatherKinds = [...this.districtWeather.values()];
     const avgScore = weatherKinds.length > 0
       ? weatherKinds.reduce((sum, k) => sum + (WEATHER_SCORE[k] ?? 0), 0) / weatherKinds.length
       : 2;
     const hasRain = avgScore < 0.5;
-    this.rainPool.visible = hasRain;
 
-    if (!hasRain) return;
+    // Create rain pool on demand when needed
+    if (hasRain && !this.rainPool) this.ensureRainPool();
+    if (this.rainPool) this.rainPool.visible = hasRain;
+
+    if (!hasRain || !this.rainPool) return;
 
     const positions = this.rainGeometry.attributes.position.array as Float32Array;
     const spreadX = 30;

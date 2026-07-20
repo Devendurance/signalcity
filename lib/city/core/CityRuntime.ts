@@ -355,10 +355,16 @@ export class CityRuntime {
 
     const globalWeather = world.districts.find((district) => district.scope === "global")?.weather.kind;
     if (globalWeather && this.sun) applyGlobalWeather(this.scene, this.sun, globalWeather);
+
+    // Re-apply city-wide weather (fog, rain, etc.) over per-district effects
+    if (this._cityWeather) {
+      this.weatherController.setCityWeather(this._cityWeather);
+    }
   }
 
   /** Set city-wide weather for global effects (fog, sky). Called from CityViewport. */
   setCityWeather(kind: string): void {
+    this._cityWeather = kind;
     this.weatherController.setCityWeather(kind);
   }
 

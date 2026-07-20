@@ -13,6 +13,7 @@ import type { CityWorldState, DistrictState } from "@/shared/contracts";
 import type { TrafficDebugLayer } from "@/lib/city/debug/TrafficDebugController";
 import { isCityDebugEnabled } from "@/lib/city/debug/debugGate";
 import { AudioController } from "@/components/city/AudioController";
+import { TickerBar } from "@/components/city/TickerBar";
 
 type PanelView = "weather" | "claims" | "entry-gate" | "portfolio";
 type SheetState = "collapsed" | "half" | "full";
@@ -217,6 +218,9 @@ export function CityViewport() {
 
       {/* Audio */}
       <AudioController isStormy={isStormy} hasWeatherData={!!liveWorld} />
+
+      {/* CMC Ticker Sidebars */}
+      <TickerBar />
 
       {/* District Panel / Bottom Sheet */}
       <aside className={sheetClass} aria-live="polite">
